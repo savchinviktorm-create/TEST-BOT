@@ -7,33 +7,46 @@ import re
 from datetime import datetime
 
 def get_fuel_prices():
-    """Отримує середні ціни на пальне в Україні з порталу Мінфін"""
+    """Отримує середні ціни на пальне в Україні з головної сторінки Мінфін"""
     try:
         url = "https://index.minfin.com.ua/ua/markets/fuel/"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=15) as f:
             html = f.read().decode('utf-8')
             
-            # Логіка пошуку середньої ціни в таблиці
-            def find_avg_price(name):
-                # Шукаємо рядок з назвою пального та беремо перше число (середню ціну)
+            # Спеціальна логіка під верстку головної сторінки Мінфіну
+            def find_avg(name):
+                # Шукаємо назву, проходимо через теги до першої ціни
                 pattern = fr'<td>.*?{name}.*?</td>\s*<td[^>]*>([\d.,]+)</td>'
                 match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
                 if match:
                     return f"{match.group(1).replace(',', '.')} грн"
                 return "—"
 
-            a95 = find_avg_price("А-95")
-            dp = find_avg_price("Дизельне паливо")
-            gas = find_avg_price("Газ автомобільний")
+            # Назви на сайті: "А-95", "Дизельне паливо", "Газ автомобільний"
+            a95 = find_avg("А-95")
+            dp = find_avg("Дизельне паливо")
+            gas = find_avg("Газ автомобільний")
             
+            # Якщо все одно прочерки, спробуємо запасний спрощений паттерн
+            if a95 == "—":
+                fallback = re.findall(r'<td[^>]*>([\d.,]{4,6})</td>', html)
+                if len(fallback) > 3:
+                    return (f"⛽ <b>Середні ціни на пальне:</b>\n"
+                            f"🔹 А-95: {fallback[1]} грн\n"
+                            f"🔹 ДП: {fallback[3]} грн\n"
+                            f"🔹 ГАЗ: {fallback[4]} грн")
+
             return (f"⛽ <b>Середні ціни на пальне:</b>\n"
                     f"🔹 А-95: {a95}\n"
                     f"🔹 ДП: {dp}\n"
                     f"🔹 ГАЗ: {gas}")
-    except:
-        return "⛽ <b>Пальне:</b> дані оновлюються на сервісі..."
+    except Exception as e:
+        print(f"Fuel error: {e}")
+        return "⛽ <b>Пальне:</b> дані оновлюються..."
 
 def get_weather(city, lat, lon, key):
     try:
@@ -71,7 +84,7 @@ def get_privat_currency():
 def get_horoscope():
     try:
         signs = {"Овен":"♈","Телець":"♉","Близнюки":"♊","Рак":"♋","Лев":"♌","Діва":"♍","Терези":"♎","Скорпіон":"♏","Стрілець":"♐","Козоріг":"♑","Водолій":"♒","Риби":"♓"}
-        advices = ["Вдалий день для справ.", "Будьте обережні з фінансами.", "День сприяє спілкуванню.", "Краще сьогодні відпочити.", "Ваші лідерські якості на висоті.", "Зверніть увагу на здоров'я."]
+        advices = ["Вдалий день для справ.", "Будьте обережні з фінансами.", "День сприяє спілкуванню.", "Час відпочити.", "Ваше лідерство на висоті.", "Зверніть увагу на здоров'я."]
         text = "<b>✨ Гороскоп на сьогодні:</b>\n"
         for s, e in signs.items():
             text += f"{e} {s}: {random.choice(advices)}\n"
@@ -111,7 +124,6 @@ if __name__ == "__main__":
     CHAT_ID = os.environ.get("MY_CHAT_ID", "").strip()
     W_KEY = os.environ.get("WEATHER_API_KEY", "").strip()
 
-    # Час (Київ)
     now_hour = (datetime.now().hour + 2) % 24
     date_str = datetime.now().strftime('%d.%m.%Y')
     
@@ -143,14 +155,14 @@ if __name__ == "__main__":
             get_mono_currency(),
             get_privat_currency() + "\n",
             "😇 <b>Іменини сьогодні:</b>",
-            get_line_by_date("names.txt", "дані оновлюються..."),
+            get_line_by_date("names.txt", "немає даних"),
             "\n📜 <b>Цей день в історії:</b>",
-            get_line_by_date("history.txt", "сьогодні спокійний день"),
+            get_line_by_date("history.txt", "спокійний день"),
             "\n" + get_horoscope(),
             "\n💡 <b>Цитата дня:</b>",
             f"<i>\"{get_random_line('database.txt', 'Живи сьогодні!')}\"</i>",
             "\n😂 <b>Анекдот дня:</b>",
-            get_random_line("jokes.txt", "сьогодні без жартів..."),
+            get_random_line("jokes.txt", "без жартів..."),
             f"\n🎄 До Нового року: <b>{days_left}</b> днів!",
             "\n<i>Вдалого дня! ✅</i>"
         ]
