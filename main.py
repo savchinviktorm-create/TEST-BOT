@@ -6,32 +6,25 @@ import urllib.parse
 import re
 from datetime import datetime
 
-def get_okko_fuel():
+def get_fuel_prices():
+    """Отримує ціни на пальне (середні по мережі ОККО через Мінфін/Vseazs)"""
     try:
-        # Заходимо на сторінку з цінами
-        url = "https://www.okko.ua/fuel"
+        # Використовуємо Мінфін, він лояльніший до запитів
+        url = "https://index.minfin.com.ua/ua/markets/fuel/tm/okko/"
         headers = {'User-Agent': 'Mozilla/5.0'}
         req = urllib.request.Request(url, headers=headers)
-        
         with urllib.request.urlopen(req, timeout=15) as f:
             html = f.read().decode('utf-8')
             
-            # Шукаємо ціни за допомогою регулярних виразів
-            # Цей метод шукає назву пального та цифри після неї в коді сторінки
-            def find_price(type_name):
-                match = re.search(fr'{type_name}.*?([\d.,]+)', html, re.DOTALL)
+            def find_p(name):
+                # Шукаємо цифру, що йде після назви пального
+                match = re.search(fr'{name}.*?([\d.,]+)', html, re.IGNORECASE | re.DOTALL)
                 return match.group(1).replace(',', '.') if match else "—"
 
-            p_95 = find_price("Pulls 95")
-            a_95 = find_price("А-95")
-            diesel = find_price("Pulls Diesel")
-            gas = find_price("ГАЗ")
-            
             return (f"⛽ <b>Ціни ОККО:</b>\n"
-                    f"🔹 P95: {p_95} грн\n"
-                    f"🔹 А95: {a_95} грн\n"
-                    f"🔹 ДП Pulls: {diesel} грн\n"
-                    f"🔹 ГАЗ: {gas} грн")
+                    f"🔹 А-95+: {find_p('А-95')}\n"
+                    f"🔹 ДП: {find_p('Дизель')}\n"
+                    f"🔹 ГАЗ: {find_p('Газ')}")
     except:
         return "⛽ <b>Ціни ОККО:</b> тимчасово недоступні"
 
@@ -102,33 +95,8 @@ if __name__ == "__main__":
     CHAT_ID = os.environ.get("MY_CHAT_ID", "").strip()
     W_KEY = os.environ.get("WEATHER_API_KEY", "").strip()
 
+    # Час Києва (UTC+2 або +3)
     now_hour = (datetime.now().hour + 2) % 24
     date_f = datetime.now().strftime('%d.%m.%Y')
     
-    weather = [get_weather("Головецько", 49.19, 23.46, W_KEY), get_weather("Львів", 49.83, 24.02, W_KEY)]
-    currency = ["💰 <b>Курс валют:</b>", get_mono_currency(), get_privat_currency()]
-
-    if now_hour >= 14:
-        # Денний звіт + Пальне
-        report = [
-            f"🌤 <b>ДЕННИЙ ОГЛЯД ({date_f})</b>\n",
-            *weather,
-            "\n" + "\n".join(currency),
-            "\n" + get_okko_fuel(),
-            "\n<i>Гарного дня! ✅</i>"
-        ]
-    else:
-        # Ранковий звіт
-        report = [
-            f"📅 <b>РАНКОВИЙ ЗВІТ ({date_f})</b>\n",
-            *weather, "\n" + "\n".join(currency) + "\n",
-            "😇 <b>Іменини:</b> " + get_line_by_date("names.txt", "немає"),
-            "📜 <b>Історія:</b> " + get_line_by_date("history.txt", "спокійно") + "\n",
-            get_horoscope() + "\n",
-            "💡 <b>Цитата:</b> <i>\"" + get_random_line('database.txt', 'Живи!') + "\"</i>",
-            "😂 <b>Анекдот:</b> " + get_random_line("jokes.txt", "немає") + "\n",
-            "🎄 До НР: <b>" + str((datetime(datetime.now().year+1,1,1)-datetime.now()).days) + "</b> днів",
-            "\n<i>Бот працює стабільно! ✅</i>"
-        ]
-
-    send_telegram(TOKEN, CHAT_ID, "\n".join(report))
+    weather =
