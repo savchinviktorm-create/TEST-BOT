@@ -14,12 +14,12 @@ TIMEZONE = pytz.timezone('Europe/Kyiv')
 
 bot = telebot.TeleBot(TOKEN)
 
-# --- МІНІ-СЕРВЕР ДЛЯ RENDER ---
+# --- МІНІ-СЕРВЕР ДЛЯ RENDER (ЩОБ БОТ НЕ СПАВ) ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is alive")
+        self.wfile.write(b"Bot is alive and kicking!")
 
 def run_health_check():
     server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
@@ -27,53 +27,95 @@ def run_health_check():
 
 Thread(target=run_health_check, daemon=True).start()
 
-# --- ФУНКЦІЇ ДАНИХ ---
+# --- ФУНКЦІЇ ДЛЯ ОТРИМАННЯ ДАНИХ ---
+
 def get_weather():
     try:
-        # Координати Головецько
+        # Координати с. Головецько
         url = "https://api.open-meteo.com/v1/forecast?latitude=48.93&longitude=23.45&current_weather=true&timezone=Europe%2FKyiv"
         res = requests.get(url, timeout=10).json()
         temp = res['current_weather']['temperature']
-        return f"🌡 **Погода у Головецько:** {temp}°C (супутниковий моніторинг)"
+        # Додамо опис стану погоди (спрощено)
+        return f"🌡 **Погода у Головецько:** {temp}°C"
     except:
-        return "🌡 Погода: Повітря свіже, але датчик трохи підвів."
+        return "🌡 **Погода:** Дані тимчасово недоступні"
+
+def get_currency():
+    try:
+        # Отримуємо курс ПриватБанку (готівковий)
+        res = requests.get('https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5', timeout=10).json()
+        usd = next(i for i in res if i['ccy'] == 'USD')
+        eur = next(i for i in res if i['ccy'] == 'EUR')
+        return (f"💰 **Курс (ПриватБанк):**\n"
+                f"💵 USD: {float(usd['buy']):.2f} / {float(usd['sale']):.2f}\n"
+                f"💶 EUR: {float(eur['buy']):.2f} / {float(eur['sale']):.2f}")
+    except:
+        return "💰 **Курс валют:** Сервіс банку не відповідає"
 
 def get_days_to_ny():
     now = datetime.now(TIMEZONE)
-    ny = datetime(now.year + 1, 1, 1, tzinfo=TIMEZONE)
-    return (ny - now).days
+    ny = datetime(now.year + (1 if now.month == 12 and now.day > 31 else 0), 1, 1, tzinfo=TIMEZONE)
+    # Якщо сьогодні вже 1 січня, рахуємо до наступного року
+    if now.month == 1 and now.day == 1:
+         ny = datetime(now.year + 1, 1, 1, tzinfo=TIMEZONE)
+    delta = ny - now
+    return delta.days
 
-def send_morning_report():
+def send_full_report(time_label):
     weather = get_weather()
+    currency = get_currency()
     days = get_days_to_ny()
+    
     jokes = [
-        "Оптиміст вірить, що 2026-й буде кращим. Реаліст просто купив генератор.",
-        "Ранок у Головецько: пташки співають, курс долара стабільний (високий).",
-        "— Куме, що ви будете робити на Новий Рік?\n— Та як завжди, обличчям в олів'є!"
+        "— Куме, а що ви будете робити на Новий Рік?\n— Та як завжди, обличчям в олів'є!",
+        "Оптиміст вірить, що наступний рік буде кращим. Реаліст просто купив генератор.",
+        "Ранок у Головецько: пташки співають, курс долара стабільний, але високий.",
+        "Діалог у Карпатах:\n— Скільки коштує цей котедж?\n— П'ять тисяч.\n— А чого так дорого?\n— Бо повітря свіже, а ви його задарма дихаєте!"
     ]
-    msg = (f"Доброго ранку! ☀️\n\n"
+    
+    quotes = [
+        "Найкращий спосіб передбачити майбутнє — створити його.",
+        "Дійте так, наче невдача неможлива.",
+        "Маленькі кроки сьогодні — великі результати завтра.",
+        "Все починається з мрії."
+    ]
+
+    msg = (f"Доброго ранку! ☀️ ({time_label})\n\n"
            f"🎄 До Нового року: **{days}** днів\n\n"
            f"{weather}\n\n"
-           f"💰 **Курс:** USD 42.80 / 43.40\n\n"
-           f"😂 **Анекдот:**\n{random.choice(jokes)}")
+           f"{currency}\n\n"
+           f"♒️ **Водолій:** День сприяє фінансовим успіхам та гарному настрою!\n\n"
+           f"😂 **Анекдот:**\n{random.choice(jokes)}\n\n"
+           f"📜 **Цитата:** {random.choice(quotes)}")
+    
     bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
 
-# Тестовий запуск при старті
+def send_short_report(time_label):
+    weather = get_weather()
+    currency = get_currency()
+    msg = f"🌤 **Обідній звіт ({time_label}):**\n\n{weather}\n\n{currency}"
+    bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
+
+# --- ЗАПУСК ---
+
+# Відправити відразу при старті для перевірки
 try:
-    send_morning_report()
-except:
-    pass
+    send_full_report("Тестовий запуск")
+except Exception as e:
+    print(f"Помилка: {e}")
 
 while True:
     now = datetime.now(TIMEZONE)
     current_time = now.strftime("%H:%M")
 
+    # Ранковий звіт о 08:20
     if current_time == "08:20":
-        send_morning_report()
+        send_full_report("08:20")
         time.sleep(65)
     
+    # Обідній звіт о 15:00
     if current_time == "15:00":
-        bot.send_message(CHAT_ID, f"🌤 Обідній звіт:\n\n{get_weather()}")
+        send_short_report("15:00")
         time.sleep(65)
 
     time.sleep(30)
