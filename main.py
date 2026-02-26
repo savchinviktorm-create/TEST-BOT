@@ -7,7 +7,7 @@ import re
 from datetime import datetime
 
 def get_fuel_prices():
-    """Максимально стабільний метод отримання цін через масив даних"""
+    """Покращений метод зчитування цін з Мінфіну (середні ціни)"""
     try:
         url = "https://index.minfin.com.ua/ua/markets/fuel/"
         headers = {
@@ -17,31 +17,37 @@ def get_fuel_prices():
         with urllib.request.urlopen(req, timeout=15) as f:
             html = f.read().decode('utf-8')
             
-            # Витягуємо ВСІ ціни з таблиці (числа формату 54.99 або 30,50)
-            prices = re.findall(r'<td[^>]*>\s*([\d,.]+)\s*</td>', html)
-            
-            # На головній Мінфіну порядок зазвичай такий:
-            # 0: А-95 преміум, 1: А-95, 2: А-92, 3: ДП, 4: Газ
-            if len(prices) >= 5:
-                a95 = prices[1].replace(',', '.')
-                dp = prices[3].replace(',', '.')
-                gas = prices[4].replace(',', '.')
-                
+            # Функція для пошуку ціни за назвою пального в HTML
+            def extract_price(fuel_name):
+                # Шукаємо назву, а потім перше число з комою або крапкою в сусідній комірці
+                pattern = fr'<td>.*?{fuel_name}.*?</td>\s*<td[^>]*>\s*([\d,.]+)\s*</td>'
+                match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+                if match:
+                    return match.group(1).replace(',', '.')
+                return None
+
+            # Пробуємо знайти ціни за ключовими словами
+            a95 = extract_price("А-95")
+            dp = extract_price("Дизельне паливо")
+            gas = extract_price("Газ автомобільний")
+
+            # Якщо текстовий пошук не спрацював для бензину (запасний варіант по масиву чисел)
+            if not a95:
+                all_prices = re.findall(r'<td[^>]*>\s*([\d,.]+)\s*</td>', html)
+                if len(all_prices) >= 5:
+                    # У більшості випадків: 0 - А95+, 1 - А95, 2 - А92, 3 - ДП, 4 - Газ
+                    a95 = all_prices[1].replace(',', '.')
+                    dp = dp or all_prices[3].replace(',', '.')
+                    gas = gas or all_prices[4].replace(',', '.')
+
+            if a95 or dp or gas:
                 return (f"⛽ <b>Середні ціни на пальне:</b>\n"
-                        f"🔹 А-95: {a95} грн\n"
-                        f"🔹 ДП: {dp} грн\n"
-                        f"🔹 ГАЗ: {gas} грн")
-            
-            # Якщо таблиця інша, шукаємо по тексту дуже грубим методом
-            match = re.search(r'А-95.*?([\d,.]+).*?Дизельне.*?([\d,.]+).*?Газ.*?([\d,.]+)', html, re.S)
-            if match:
-                return (f"⛽ <b>Середні ціни на пальне:</b>\n"
-                        f"🔹 А-95: {match.group(1)} грн\n"
-                        f"🔹 ДП: {match.group(2)} грн\n"
-                        f"🔹 ГАЗ: {match.group(3)} грн")
+                        f"🔹 А-95: {a95 or '—'} грн\n"
+                        f"🔹 ДП: {dp or '—'} грн\n"
+                        f"🔹 ГАЗ: {gas or '—'} грн")
                 
         return "⛽ <b>Пальне:</b> дані оновлюються..."
-    except:
+    except Exception as e:
         return "⛽ <b>Пальне:</b> сервіс тимчасово недоступний"
 
 def get_weather(city, lat, lon, key):
@@ -131,7 +137,6 @@ if __name__ == "__main__":
     currency_header = "💰 <b>Курс валют для порівняння:</b>"
 
     if now_hour >= 14:
-        # --- ДЕННИЙ ОГЛЯД ---
         report = [
             f"🌤 <b>ДЕННИЙ ОГЛЯД ({date_str})</b>\n",
             *weather_info,
@@ -142,7 +147,6 @@ if __name__ == "__main__":
             "\n<i>Гарного вечора! ✅</i>"
         ]
     else:
-        # --- РАНКОВИЙ ЗВІТ ---
         days_left = (datetime(datetime.now().year + 1, 1, 1) - datetime.now()).days
         report = [
             f"📅 <b>РАНКОВИЙ ЗВІТ ({date_str})</b>\n",
