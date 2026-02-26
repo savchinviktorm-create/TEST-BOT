@@ -4,50 +4,61 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
-def get_weather(lat, lon, key):
+def get_weather(city_name, lat, lon, api_key):
+    """Отримує погоду для вказаних координат."""
     try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={key}&units=metric&lang=uk"
+        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units=metric&lang=uk"
         with urllib.request.urlopen(url, timeout=10) as f:
             data = json.loads(f.read().decode())
             temp = round(data['main']['temp'])
             desc = data['weather'][0]['description'].capitalize()
-            return f"{'+' if temp > 0 else ''}{temp}°C, {desc}"
+            # Додаємо знак + для плюсової температури
+            sign = "+" if temp > 0 else ""
+            return f"📍 {city_name}: {sign}{temp}°C, {desc}"
     except Exception as e:
-        return f"помилка погоди ({e})"
+        return f"📍 {city_name}: не вдалося отримати дані ❌"
 
 def send_telegram(token, chat_id, text):
+    """Надсилає повідомлення в Telegram."""
     try:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        # Використовуємо просту передачу без Markdown, щоб уникнути помилки 400
-        params = {'chat_id': chat_id, 'text': text}
+        params = {
+            'chat_id': chat_id,
+            'text': text,
+            'parse_mode': 'HTML' # Дозволяє робити текст жирним через <b>
+        }
         data = urllib.parse.urlencode(params).encode()
         req = urllib.request.Request(url, data=data)
         with urllib.request.urlopen(req, timeout=10) as f:
             return True
     except Exception as e:
-        print(f"Помилка відправки в Telegram: {e}")
+        print(f"Помилка Telegram: {e}")
         return False
 
 if __name__ == "__main__":
-    # Отримуємо секрети та чистимо їх від випадкових пробілів
+    # Завантаження секретів
     TOKEN = os.environ.get("TOKEN", "").strip()
-    W_KEY = os.environ.get("WEATHER_API_KEY", "").strip()
     CHAT_ID = os.environ.get("MY_CHAT_ID", "").strip()
+    W_KEY = os.environ.get("WEATHER_API_KEY", "").strip()
 
-    # Формуємо текст
-    date_str = datetime.now().strftime('%d.%m.%Y')
-    report = f"ЗВІТ НА {date_str}\n\n"
+    # Дата для заголовка
+    date_now = datetime.now().strftime('%d.%m.%Y')
     
-    weather_gol = get_weather(49.19, 23.46, W_KEY)
-    weather_lviv = get_weather(49.83, 24.02, W_KEY)
+    # Формування звіту
+    header = f"<b>ЗВІТ НА {date_now}</b>\n\n"
     
-    report += f"📍 Головецько: {weather_gol}\n"
-    report += f"📍 Львів: {weather_lviv}\n\n"
-    report += "Бот працює стабільно! ✅"
+    # Отримання погоди (твої координати)
+    weather_gol = get_weather("Головецько", 49.19, 23.46, W_KEY)
+    weather_lviv = get_weather("Львів", 49.83, 24.02, W_KEY)
+    
+    full_report = header + weather_gol + "\n" + weather_lviv + "\n\n"
+    full_report += "Бот працює стабільно! ✅"
 
-    print("Спроба відправки звіту...")
-    if send_telegram(TOKEN, CHAT_ID, report):
-        print("УСПІХ: Повідомлення в черзі!")
+    # Відправка
+    if TOKEN and CHAT_ID:
+        if send_telegram(TOKEN, CHAT_ID, full_report):
+            print("Звіт успішно відправлено!")
+        else:
+            print("Помилка при відправці.")
     else:
-        print("ФЕЙЛ: Повідомлення не пішло.")
-        exit(1)
+        print("Секрети TOKEN або CHAT_ID порожні!")
