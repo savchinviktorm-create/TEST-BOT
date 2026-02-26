@@ -84,10 +84,10 @@ def send_morning():
     bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
 
 def send_afternoon():
-    msg = f"Добрий день! 🌤 (15:00)\n\n{get_weather()}\n\n{get_currency()}"
+    msg = f"Добрий день! 🌤 (15:30)\n\n{get_weather()}\n\n{get_currency()}"
     bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
 
-print("Бот запущений і чекає на розклад (08:20 та 15:00)...")
+print("Бот запущений і чекає на розклад (08:20 та 15:30)...")
 
 while True:
     now = datetime.now(TIMEZONE)
@@ -97,7 +97,7 @@ while True:
         send_morning()
         time.sleep(65)
     
-    if current_time == "15:00":
+    if current_time == "15:300":
         send_afternoon()
         time.sleep(65)
 
