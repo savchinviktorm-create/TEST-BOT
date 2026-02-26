@@ -5,6 +5,8 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
+# --- Функції отримання даних (залишаються без змін) ---
+
 def get_weather(city, lat, lon, key):
     try:
         url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={key}&units=metric&lang=uk"
@@ -27,7 +29,6 @@ def get_mono_currency():
 
 def get_privat_currency():
     try:
-        # Готівковий курс ПриватБанку
         url = "https://api.privatbank.ua/p24api/pubinfo?exchange&coursid=5"
         with urllib.request.urlopen(url, timeout=10) as f:
             data = json.loads(f.read().decode())
@@ -37,7 +38,6 @@ def get_privat_currency():
     except: return "🔸 <b>ПриватБанк:</b> тимчасово недоступний"
 
 def get_line_by_date(file_name, default_msg):
-    """Шукає рядок, що починається з поточної дати (ДД.ММ)."""
     today_prefix = datetime.now().strftime('%d.%m')
     if os.path.exists(file_name):
         with open(file_name, 'r', encoding='utf-8') as f:
@@ -66,40 +66,53 @@ def send_telegram(token, chat_id, text):
         data = urllib.parse.urlencode(params).encode()
         urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=15)
         return True
-    except Exception as e:
-        print(f"Помилка відправки: {e}")
-        return False
+    except: return False
+
+# --- Основна логіка ---
 
 if __name__ == "__main__":
     TOKEN = os.environ.get("TOKEN", "").strip()
     CHAT_ID = os.environ.get("MY_CHAT_ID", "").strip()
     W_KEY = os.environ.get("WEATHER_API_KEY", "").strip()
 
+    now_hour = (datetime.now().hour + 2) % 24 # Корекція на Київський час (+2 або +3 залежно від сезону)
     date_full = datetime.now().strftime('%d.%m.%Y')
     
-    report = [
-        f"📅 <b>ЗВІТ НА {date_full}</b>\n",
+    # Спільні дані для обох звітів
+    weather_data = [
         get_weather("Головецько", 49.19, 23.46, W_KEY),
-        get_weather("Львів", 49.83, 24.02, W_KEY) + "\n",
-        
-        "💰 <b>Курс валют для порівняння:</b>",
-        get_mono_currency(),
-        get_privat_currency() + "\n",
-        
-        "😇 <b>Іменини сьогодні:</b>",
-        get_line_by_date("names.txt", "немає даних про іменини") + "\n",
-        
-        "📜 <b>Цей день в історії:</b>",
-        get_line_by_date("history.txt", "сьогодні спокійний день в історії...") + "\n",
-        
-        "💡 <b>Цитата дня:</b>",
-        f"<i>\"{get_random_line('database.txt', 'Живи сьогодні!')}\"</i>\n",
-        
-        "😂 <b>Анекдот дня:</b>",
-        get_random_line("jokes.txt", "Сьогодні без жартів...") + "\n",
-        
-        days_to_new_year() + "\n",
-        "<i>Бот працює стабільно! ✅</i>"
+        get_weather("Львів", 49.83, 24.02, W_KEY)
     ]
+    currency_data = [
+        "💰 <b>Курс валют:</b>",
+        get_mono_currency(),
+        get_privat_currency()
+    ]
+
+    # Якщо запуск після 14:00 (денний звіт)
+    if now_hour >= 14:
+        report = [
+            f"🌤 <b>ДЕННИЙ ОГЛЯД ({date_full})</b>\n",
+            *weather_data,
+            "\n" + "\n".join(currency_data),
+            "\n<i>Гарного дня! ✅</i>"
+        ]
+    # Ранковий звіт (повна інформація)
+    else:
+        report = [
+            f"📅 <b>РАНКОВИЙ ЗВІТ ({date_full})</b>\n",
+            *weather_data,
+            "\n" + "\n".join(currency_data) + "\n",
+            "😇 <b>Іменини сьогодні:</b>",
+            get_line_by_date("names.txt", "немає даних") + "\n",
+            "📜 <b>Цей день в історії:</b>",
+            get_line_by_date("history.txt", "спокійний день") + "\n",
+            "💡 <b>Цитата дня:</b>",
+            f"<i>\"{get_random_line('database.txt', 'Живи сьогодні!')}\"</i>\n",
+            "😂 <b>Анекдот дня:</b>",
+            get_random_line("jokes.txt", "без жартів...") + "\n",
+            days_to_new_year() + "\n",
+            "<i>Бот працює стабільно! ✅</i>"
+        ]
 
     send_telegram(TOKEN, CHAT_ID, "\n".join(report))
