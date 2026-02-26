@@ -1,4 +1,2 @@
-pyTelegramBotAPI
+aiogram
 requests
-beautifulsoup4
-pytz
