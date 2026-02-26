@@ -1,8 +1,9 @@
 name: Daily Report
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 6 * * *'   # 08:00 за Києвом (Повний звіт)
+    - cron: '0 13 * * *'  # 15:00 за Києвом (Погода + Валюта)
+  workflow_dispatch:      # Кнопка для ручного запуску
 
 jobs:
   send_report:
