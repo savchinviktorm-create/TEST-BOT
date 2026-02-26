@@ -1,5 +1,4 @@
 import requests
-from bs4 import BeautifulSoup
 import telebot
 import time
 import random
@@ -15,45 +14,42 @@ TIMEZONE = pytz.timezone('Europe/Kyiv')
 
 bot = telebot.TeleBot(TOKEN)
 
-# --- "ХИТРІСТЬ" ДЛЯ RENDER (ЩОБ НЕ ВИМИКАВСЯ) ---
+# --- МІНІ-СЕРВЕР ДЛЯ RENDER ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running")
+        self.wfile.write(b"Bot is alive")
 
 def run_health_check():
     server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
     server.serve_forever()
 
-# Запускаємо "міні-сайт" у фоні
 Thread(target=run_health_check, daemon=True).start()
 
-# --- ФУНКЦІЇ БОТА ---
+# --- ФУНКЦІЇ ДАНИХ ---
+def get_weather():
+    try:
+        # Координати Головецько
+        url = "https://api.open-meteo.com/v1/forecast?latitude=48.93&longitude=23.45&current_weather=true&timezone=Europe%2FKyiv"
+        res = requests.get(url, timeout=10).json()
+        temp = res['current_weather']['temperature']
+        return f"🌡 **Погода у Головецько:** {temp}°C (супутниковий моніторинг)"
+    except:
+        return "🌡 Погода: Повітря свіже, але датчик трохи підвів."
+
 def get_days_to_ny():
     now = datetime.now(TIMEZONE)
     ny = datetime(now.year + 1, 1, 1, tzinfo=TIMEZONE)
     return (ny - now).days
 
-def get_weather():
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    try:
-        r = requests.get('https://sinoptik.ua/pohoda/holovetsko', headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, 'html.parser')
-        t_min = soup.select_one('.temperature .min span').text
-        t_max = soup.select_one('.temperature .max span').text
-        return f"🌡 **Головецько:** {t_min}..{t_max}"
-    except:
-        return "🌡 **Погода:** Повітря свіже, настрій чудовий!"
-
 def send_morning_report():
-    days = get_days_to_ny()
     weather = get_weather()
-    # Анекдот (випадковий з невеликого списку для стабільності)
+    days = get_days_to_ny()
     jokes = [
-        "— Куме, а що ви будете робити на Новий Рік?\n— Та як завжди, обличчям в олів'є!",
         "Оптиміст вірить, що 2026-й буде кращим. Реаліст просто купив генератор.",
-        "Ранок у Головецько: пташки співають, курс долара стабільний (високий)."
+        "Ранок у Головецько: пташки співають, курс долара стабільний (високий).",
+        "— Куме, що ви будете робити на Новий Рік?\n— Та як завжди, обличчям в олів'є!"
     ]
     msg = (f"Доброго ранку! ☀️\n\n"
            f"🎄 До Нового року: **{days}** днів\n\n"
@@ -62,10 +58,9 @@ def send_morning_report():
            f"😂 **Анекдот:**\n{random.choice(jokes)}")
     bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
 
-# Відправка відразу при старті
+# Тестовий запуск при старті
 try:
     send_morning_report()
-    print("Бот успішно запустився!")
 except:
     pass
 
