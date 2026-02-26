@@ -7,47 +7,34 @@ import re
 from datetime import datetime
 
 def get_fuel_prices():
-    """Покращений метод зчитування цін з Мінфіну (середні ціни)"""
+    """Отримує середні ціни на пальне з Auto.Ria (найбільш стабільне джерело)"""
     try:
-        url = "https://index.minfin.com.ua/ua/markets/fuel/"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
+        url = "https://auto.ria.com/uk/toplivo/"
+        headers = {'User-Agent': 'Mozilla/5.0'}
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=15) as f:
             html = f.read().decode('utf-8')
             
-            # Функція для пошуку ціни за назвою пального в HTML
-            def extract_price(fuel_name):
-                # Шукаємо назву, а потім перше число з комою або крапкою в сусідній комірці
-                pattern = fr'<td>.*?{fuel_name}.*?</td>\s*<td[^>]*>\s*([\d,.]+)\s*</td>'
-                match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+            # Шукаємо ціни в блоці середніх значень
+            def find_p(name):
+                # Патерн шукає назву пального і наступне за ним число в таблиці
+                pattern = fr'bold">{name}</a>.*?<span class="size18">([\d,.]+)'
+                match = re.search(pattern, html, re.DOTALL)
                 if match:
-                    return match.group(1).replace(',', '.')
+                    return f"{match.group(1).replace(',', '.')} грн"
                 return None
 
-            # Пробуємо знайти ціни за ключовими словами
-            a95 = extract_price("А-95")
-            dp = extract_price("Дизельне паливо")
-            gas = extract_price("Газ автомобільний")
-
-            # Якщо текстовий пошук не спрацював для бензину (запасний варіант по масиву чисел)
-            if not a95:
-                all_prices = re.findall(r'<td[^>]*>\s*([\d,.]+)\s*</td>', html)
-                if len(all_prices) >= 5:
-                    # У більшості випадків: 0 - А95+, 1 - А95, 2 - А92, 3 - ДП, 4 - Газ
-                    a95 = all_prices[1].replace(',', '.')
-                    dp = dp or all_prices[3].replace(',', '.')
-                    gas = gas or all_prices[4].replace(',', '.')
+            a95 = find_p("A-95")
+            dp = find_p("ДП")
+            gas = find_p("Газ")
 
             if a95 or dp or gas:
                 return (f"⛽ <b>Середні ціни на пальне:</b>\n"
-                        f"🔹 А-95: {a95 or '—'} грн\n"
-                        f"🔹 ДП: {dp or '—'} грн\n"
-                        f"🔹 ГАЗ: {gas or '—'} грн")
-                
+                        f"🔹 А-95: {a95 or '—'}\n"
+                        f"🔹 ДП: {dp or '—'}\n"
+                        f"🔹 ГАЗ: {gas or '—'}")
         return "⛽ <b>Пальне:</b> дані оновлюються..."
-    except Exception as e:
+    except:
         return "⛽ <b>Пальне:</b> сервіс тимчасово недоступний"
 
 def get_weather(city, lat, lon, key):
@@ -68,9 +55,9 @@ def get_mono_currency():
             data = json.loads(f.read().decode())
             usd = next(item for item in data if item['currencyCodeA'] == 840 and item['currencyCodeB'] == 980)
             eur = next(item for item in data if item['currencyCodeA'] == 978 and item['currencyCodeB'] == 980)
-            return f"🔹 <b>Monobank:</b>\n💵 USD: {usd['rateBuy']}/{usd['rateSell']}\n💶 EUR: {eur['rateBuy']}/{eur['rateSell']}"
+            return f"🔹 <b>Mono:</b> USD {usd['rateBuy']}/{usd['rateSell']} | EUR {eur['rateBuy']}/{eur['rateSell']}"
     except:
-        return "🔹 <b>Monobank:</b> недоступний"
+        return "🔹 <b>Mono:</b> недоступний"
 
 def get_privat_currency():
     try:
@@ -79,14 +66,14 @@ def get_privat_currency():
             data = json.loads(f.read().decode())
             usd = next(item for item in data if item['ccy'] == 'USD')
             eur = next(item for item in data if item['ccy'] == 'EUR')
-            return f"🔸 <b>ПриватБанк:</b>\n💵 USD: {float(usd['buy']):.2f}/{float(usd['sale']):.2f}\n💶 EUR: {float(eur['buy']):.2f}/{float(eur['sale']):.2f}"
+            return f"🔸 <b>Приват:</b> USD {float(usd['buy']):.2f}/{float(usd['sale']):.2f} | EUR {float(eur['buy']):.2f}/{float(eur['sale']):.2f}"
     except:
-        return "🔸 <b>ПриватБанк:</b> недоступний"
+        return "🔸 <b>Приват:</b> недоступний"
 
 def get_horoscope():
     try:
         signs = {"Овен":"♈","Телець":"♉","Близнюки":"♊","Рак":"♋","Лев":"♌","Діва":"♍","Терези":"♎","Скорпіон":"♏","Стрілець":"♐","Козоріг":"♑","Водолій":"♒","Риби":"♓"}
-        advices = ["Вдалий день для справ.", "Будьте обережні з фінансами.", "Час для спілкування.", "Краще відпочити.", "Лідерство за вами.", "Здоров'я понад усе."]
+        advices = ["Вдалий день для справ.", "Будьте обережні з фінансами.", "День сприяє спілкуванню.", "Час відпочити.", "Ваше лідерство на висоті.", "Зверніть увагу на здоров'я."]
         text = "<b>✨ Гороскоп на сьогодні:</b>\n"
         for s, e in signs.items():
             text += f"{e} {s}: {random.choice(advices)}\n"
@@ -133,25 +120,25 @@ if __name__ == "__main__":
         get_weather("Головецько", 49.19, 23.46, W_KEY),
         get_weather("Львів", 49.83, 24.02, W_KEY)
     ]
-    
-    currency_header = "💰 <b>Курс валют для порівняння:</b>"
 
     if now_hour >= 14:
+        # ДЕННИЙ / ВЕЧІРНІЙ ЗВІТ
         report = [
             f"🌤 <b>ДЕННИЙ ОГЛЯД ({date_str})</b>\n",
             *weather_info,
-            "\n" + currency_header,
+            "\n💰 <b>Курс валют:</b>",
             get_mono_currency(),
             get_privat_currency(),
             "\n" + get_fuel_prices(),
             "\n<i>Гарного вечора! ✅</i>"
         ]
     else:
+        # РАНКОВИЙ ЗВІТ
         days_left = (datetime(datetime.now().year + 1, 1, 1) - datetime.now()).days
         report = [
             f"📅 <b>РАНКОВИЙ ЗВІТ ({date_str})</b>\n",
             *weather_info,
-            "\n" + currency_header,
+            "\n💰 <b>Курс валют:</b>",
             get_mono_currency(),
             get_privat_currency() + "\n",
             "😇 <b>Іменини сьогодні:</b>",
