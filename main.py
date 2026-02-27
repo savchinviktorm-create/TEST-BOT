@@ -3,55 +3,66 @@ import urllib.request
 import json
 from datetime import datetime
 
-# СЮДИ ВСТАВ СВОЄ ПОСИЛАННЯ (CSV)
-URL_CURRENCY_TABLE = "ТВОЄ_ПОСИЛАННЯ_З_КРОКУ_ПУБЛІКАЦІЇ"
+# --- ВСТАВ СВОЄ ПОСИЛАННЯ (CSV) ТУТ ---
+URL_CURRENCY_TABLE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSExxHF9GN-lpJF9I3L9kLzFoH9lo4_emwtiEoHpiezlf3ESOw6dxGrjmQwk1wuFC6mV6035wu6-l4M/pub?gid=2060076239&single=true&output=csv"
 
 def get_raw_data(url):
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=15) as response:
             return response.read().decode('utf-8')
-    except Exception as e:
-        print(f"Error fetching {url}: {e}")
+    except:
         return None
 
 def parse_currency():
-    raw_data = get_raw_data(URL_CURRENCY_TABLE)
-    if not raw_data:
-        return "❌ Дані валют недоступні"
+    data = get_raw_data(URL_CURRENCY_TABLE)
+    if not data:
+        return "❌ Не вдалося завантажити дані з таблиці"
     
-    lines = [line.split(',') for line in raw_data.splitlines() if line.strip()]
+    # Розбиваємо таблицю на рядки та елементи
+    lines = [line.split(',') for line in data.splitlines()]
     
+    usd_bank = "немає даних"
+    eur_bank = "немає даних"
+    usd_black = "немає даних"
+    eur_black = "немає даних"
+    
+    def clean(val):
+        return val.replace('"', '').strip()
+
     try:
-        def clean(val):
-            return val.replace('"', '').strip()
-
-        # Шукаємо потрібні рядки за ключовими словами, щоб не залежати від номерів рядків
-        usd_buy, usd_sale = "?", "?"
-        eur_buy, eur_sale = "?", "?"
-        black_usd_buy, black_usd_sale = "?", "?"
-
         for row in lines:
-            if len(row) > 2 and clean(row[0]) == "USD":
-                usd_buy, usd_sale = clean(row[1]), clean(row[2])
-                if len(row) > 6: # Чорний ринок зазвичай праворуч
-                    black_usd_buy, black_usd_sale = clean(row[5]), clean(row[6])
-            if len(row) > 2 and clean(row[0]) == "EUR":
-                eur_buy, eur_sale = clean(row[1]), clean(row[2])
+            if len(row) < 2: continue
+            
+            # Шукаємо USD у першому стовпці (Банки)
+            if clean(row[0]) == "USD":
+                usd_bank = f"{clean(row[1])} / {clean(row[2])}"
+                # Якщо в цьому ж рядку є дані обмінників (стовпці F, G)
+                if len(row) > 6 and clean(row[5]) != "":
+                    usd_black = f"{clean(row[5])} / {clean(row[6])}"
+            
+            # Шукаємо EUR у першому стовпці (Банки)
+            if clean(row[0]) == "EUR":
+                eur_bank = f"{clean(row[1])} / {clean(row[2])}"
+                # Якщо в наступних стовпцях є євро обмінників
+                if len(row) > 6 and clean(row[5]) != "":
+                    eur_black = f"{clean(row[5])} / {clean(row[6])}"
 
-        # Розрахунок крос-курсу в коді
+        # Рахуємо крос-курс прямо тут (EUR купівля / USD купівля)
         try:
-            cross = round(float(eur_buy) / float(usd_buy), 3)
+            e_val = float(eur_bank.split('/')[0].replace(',', '.').strip())
+            u_val = float(usd_bank.split('/')[0].replace(',', '.').strip())
+            cross = round(e_val / u_val, 3)
         except:
-            cross = "немає даних"
+            cross = "не розраховано"
 
         return (
-            f"🇺🇸 **USD:** Банки: {usd_buy}/{usd_sale} | Обмін: {black_usd_buy}/{black_usd_sale}\n"
-            f"🇪🇺 **EUR:** Банки: {eur_buy}/{eur_sale}\n"
+            f"🇺🇸 **USD:** Банки: {usd_bank} | Обмін: {usd_black}\n"
+            f"🇪🇺 **EUR:** Банки: {eur_bank} | Обмін: {eur_black}\n"
             f"💱 **Крос-курс EUR/USD:** {cross}"
         )
-    except Exception as e:
-        return f"⚠️ Дані оновлюються в таблиці..."
+    except:
+        return "⚠️ Помилка обробки структури таблиці"
 
 def get_weather():
     api_key = os.getenv('WEATHER_API_KEY')
@@ -62,9 +73,7 @@ def get_weather():
         d = get_raw_data(url)
         if d:
             js = json.loads(d)
-            temp = round(js['main']['temp'])
-            desc = js['weather'][0]['description'].capitalize()
-            reports.append(f"📍 {name}: {temp}°C, {desc}")
+            reports.append(f"📍 {name}: {round(js['main']['temp'])}°C, {js['weather'][0]['description'].capitalize()}")
     return "\n".join(reports)
 
 def send_report():
@@ -72,6 +81,7 @@ def send_report():
     chat_id = os.getenv('MY_CHAT_ID')
     now = datetime.now()
     
+    # Дані з GitHub файлів (іменини, історія)
     months = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"]
     history_url = "https://raw.githubusercontent.com/savchinviktorm-create/my-daily-bot/main/history.txt"
     names_url = "https://raw.githubusercontent.com/savchinviktorm-create/my-daily-bot/main/names.txt"
