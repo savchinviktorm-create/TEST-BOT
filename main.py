@@ -15,50 +15,43 @@ def get_raw_data(url):
     except: return None
 
 def parse_currency():
-    data = get_raw_data(URL_CURRENCY_TABLE)
-    if not data: return "❌ Не вдалося завантажити дані"
+    raw_data = get_raw_data(URL_CURRENCY_TABLE)
+    if not raw_data: return "❌ Таблиця недоступна"
     
-    lines = data.splitlines()
     usd_res, eur_res = "немає даних", "немає даних"
-    usd_buy = 1.0 # для крос-курсу
+    u_buy, e_buy = 0.0, 0.0
 
-    try:
-        for line in lines:
-            # Очищаємо рядок від зайвих лапок
-            clean_line = line.replace('"', '')
+    # Розбиваємо на рядки
+    lines = raw_data.splitlines()
+    for line in lines:
+        # Прибираємо зайве: лапки, зайві пробіли
+        clean_line = line.replace('"', '').strip()
+        
+        # Витягуємо всі числа (цілі або з комою/крапкою)
+        nums = re.findall(r'\d+[.,]\d+|\d+', clean_line)
+        
+        # Шукаємо USD (не обов'язково на початку)
+        if "USD" in clean_line and len(nums) >= 2:
+            b = nums[0].replace(',', '.')
+            s = nums[1].replace(',', '.')
+            u_buy = float(b)
+            usd_res = f"{b} / {s}"
             
-            # Шукаємо USD
-            if clean_line.startswith("USD"):
-                # Знаходимо всі числа (цілі або дробові)
-                nums = re.findall(r'\d+[.,]\d+|\d+', clean_line)
-                if len(nums) >= 2:
-                    # nums[0] - купівля, nums[-1] або nums[1] - продаж
-                    b = nums[0].replace(',', '.')
-                    s = nums[1].replace(',', '.')
-                    usd_buy = float(b)
-                    usd_res = f"{b} / {s}"
-            
-            # Шукаємо EUR
-            if clean_line.startswith("EUR"):
-                nums = re.findall(r'\d+[.,]\d+|\d+', clean_line)
-                if len(nums) >= 2:
-                    eb = nums[0].replace(',', '.')
-                    es = nums[1].replace(',', '.')
-                    eur_buy = float(eb)
-                    eur_res = f"{eb} / {es}"
+        # Шукаємо EUR
+        if "EUR" in clean_line and len(nums) >= 2:
+            eb = nums[0].replace(',', '.')
+            es = nums[1].replace(',', '.')
+            e_buy = float(eb)
+            eur_res = f"{eb} / {es}"
 
-        # Рахуємо крос-курс
-        try:
-            cross = round(eur_buy / usd_buy, 3)
-        except: cross = "немає даних"
+    # Розрахунок крос-курсу
+    cross = round(e_buy / u_buy, 3) if u_buy > 0 else "немає даних"
 
-        return (
-            f"🇺🇸 **USD:** {usd_res}\n"
-            f"🇪🇺 **EUR:** {eur_res}\n"
-            f"💱 **Крос-курс EUR/USD:** {cross}"
-        )
-    except Exception as e:
-        return f"⚠️ Помилка структури: {str(e)}"
+    return (
+        f"🇺🇸 **USD:** {usd_res}\n"
+        f"🇪🇺 **EUR:** {eur_res}\n"
+        f"💱 **Крос-курс EUR/USD:** {cross}"
+    )
 
 def get_weather():
     api_key = os.getenv('WEATHER_API_KEY')
@@ -69,17 +62,16 @@ def get_weather():
         d = get_raw_data(url)
         if d:
             js = json.loads(d)
-            temp = round(js['main']['temp'])
-            desc = js['weather'][0]['description'].capitalize()
-            reports.append(f"📍 {name}: {temp}°C, {desc}")
+            reports.append(f"📍 {name}: {round(js['main']['temp'])}°C, {js['weather'][0]['description'].capitalize()}")
     return "\n".join(reports)
 
 def get_git_info(file_name, search_key):
     url = f"https://raw.githubusercontent.com/savchinviktorm-create/my-daily-bot/main/{file_name}"
     data = get_raw_data(url)
     if data:
+        # Для іменин шукаємо просто входження дати (напр. "27 лютого")
         for line in data.splitlines():
-            if search_key in line:
+            if search_key.lower() in line.lower():
                 return line.split('—', 1)[-1].strip() if '—' in line else line.split(':', 1)[-1].strip()
     return "немає даних"
 
@@ -88,7 +80,6 @@ def send_report():
     chat_id = os.getenv('MY_CHAT_ID')
     now = datetime.now()
     
-    # Дата для іменин
     months = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"]
     day_month_text = f"{now.day} {months[now.month-1]}"
     
