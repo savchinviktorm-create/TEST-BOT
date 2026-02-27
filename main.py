@@ -8,18 +8,19 @@ import pytz
 TOKEN = "8779933996:AAFtTmrPZ3qME5WV3ZRf7rfOHKzxbCsmSFY"
 CHAT_ID = "653398188"
 GITHUB_BASE = "https://raw.githubusercontent.com/savchinviktorm-create/my-daily-bot/main/"
-TMDB_API_KEY = "3fd2be6f0c70a2a598f084ddadd75477" # Твій ключ для кіно
+# Перевір цей ключ або отримай новий на themoviedb.org
+TMDB_API_KEY = "3fd2be6f0c70a2a598f084ddadd75477" 
 
 def get_from_github(file_name):
-    """Отримує дані з файлів на GitHub"""
     try:
         r = requests.get(f"{GITHUB_BASE}{file_name}", timeout=10)
         if r.status_code == 200:
-            return [l.strip() for l in r.text.splitlines() if l.strip()]
+            lines = [l.strip() for l in r.text.splitlines() if l.strip()]
+            return lines
     except: return []
     return []
 
-# --- API СЕРВІСИ ---
+# --- ФУНКЦІЇ КОНТЕНТУ ---
 
 def get_holidays():
     try:
@@ -30,28 +31,6 @@ def get_holidays():
         return "🎊 <b>Свята сьогодні:</b> " + ", ".join(holidays) if holidays else ""
     except: return ""
 
-def get_fact():
-    try:
-        day, month = datetime.now().day, datetime.now().month
-        r = requests.get(f"http://numbersapi.com/{month}/{day}/date", timeout=5)
-        return f"💡 <b>Цікавий факт:</b>\n<i>{r.text}</i>"
-    except: return ""
-
-def get_advice():
-    try:
-        r = requests.get("https://api.adviceslip.com/advice", timeout=5).json()
-        # Порада приходить англійською. Можна залишити так або додати переклад пізніше.
-        return f"🛠 <b>Порада дня:</b>\n<i>{r['slip']['advice']}</i>"
-    except: return "🛠 <b>Порада дня:</b> Посміхайтеся частіше, це вам личить!"
-
-def get_movie():
-    try:
-        url = f"https://api.themoviedb.org/3/trending/movie/day?api_key={TMDB_API_KEY}&language=uk-UA"
-        r = requests.get(url, timeout=5).json()
-        movie = random.choice(r['results'])
-        return f"🎬 <b>Вечірній кінозал:</b>\n\n<b>{movie['title']}</b>\n⭐️ Рейтинг: {movie['vote_average']:.1f}/10\n\n📖 {movie['overview'][:250]}..."
-    except: return "🎬 <b>Вечірній кінозал:</b> Сьогодні час для перегляду вашого улюбленого фільму!"
-
 def get_currency():
     res = "💰 <b>Курси валют:</b>\n"
     try:
@@ -59,7 +38,7 @@ def get_currency():
         usd = next(x for x in p if x['ccy'] == 'USD')
         eur = next(x for x in p if x['ccy'] == 'EUR')
         res += f"🏦 <b>Приват:</b> 🇺🇸 {float(usd['buy']):.2f}/{float(usd['sale']):.2f} | 🇪🇺 {float(eur['buy']):.2f}/{float(eur['sale']):.2f}\n"
-    except: res += "🏦 ПриватБанк: сервіс оновлюється\n"
+    except: res += "🏦 ПриватБанк: оновлення...\n"
     
     try:
         m = requests.get("https://api.monobank.ua/bank/currency", timeout=5).json()
@@ -69,10 +48,23 @@ def get_currency():
     except: pass
     return res
 
-# --- ОСНОВНІ БЛОКИ ЗА ЧАСОМ ---
+def get_movie_ukr():
+    """Спроба взяти фільм з API українською, або повернення цікавого факту про кіно"""
+    try:
+        url = f"https://api.themoviedb.org/3/trending/movie/day?api_key={TMDB_API_KEY}&language=uk-UA"
+        r = requests.get(url, timeout=5).json()
+        if 'results' in r and r['results']:
+            movie = random.choice(r['results'])
+            title = movie.get('title', 'Цікавий фільм')
+            desc = movie.get('overview', 'Опис скоро з’явиться...')
+            rating = movie.get('vote_average', 0)
+            return f"🎬 <b>Вечірній кінозал:</b>\n\n<b>{title}</b>\n⭐️ Рейтинг: {rating:.1f}/10\n\n📖 {desc[:300]}..."
+    except: pass
+    return "🎬 <b>Вечірній кінозал:</b>\nСьогодні чудовий час, щоб переглянути українську класику або світові новинки в українському дубляжі! Попкорн обов'язковий. 🍿"
+
+# --- ОСНОВНІ БЛОКИ ---
 
 def send_morning():
-    """РАНОК: Фото + Валюти + Свята + Іменини + Історія"""
     kyiv_tz = pytz.timezone('Europe/Kyiv')
     now = datetime.now(kyiv_tz)
     date_key = now.strftime("%m-%d")
@@ -90,34 +82,31 @@ def send_morning():
     text += f"🎄 До Нового року: <b>{(datetime(now.year+1,1,1,tzinfo=kyiv_tz)-now).days}</b> днів"
 
     img_url = f"{GITHUB_BASE}media/morning/{random.randint(1, 26)}.png"
-    try:
-        img_data = requests.get(img_url).content
-        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendPhoto", 
-                      files={"photo": ("i.png", img_data)}, data={"chat_id": CHAT_ID, "caption": text, "parse_mode": "HTML"})
-    except:
-        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                      data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"})
+    img_data = requests.get(img_url).content
+    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendPhoto", 
+                  files={"photo": ("i.png", img_data)}, data={"chat_id": CHAT_ID, "caption": text, "parse_mode": "HTML"})
 
 def send_midday():
-    """ОБІД: Мотивація + Факт дня"""
     quotes = get_from_github("quotes.txt")
-    quote = random.choice(quotes) if quotes else "Кожен день — це новий шанс!"
-    fact = get_fact()
-    
-    text = f"✨ <b>ХВИЛИНКА НАТХНЕННЯ</b>\n\n«{quote}»\n\n{fact}"
+    quote = random.choice(quotes) if quotes else "Сьогодні чудовий день!"
+    # Тимчасово прибрав англійський факт, замінив на суто українську цитату з емодзі
+    text = f"✨ <b>ХВИЛИНКА НАТХНЕННЯ</b>\n\n«{quote}»\n\n🌈 <i>Бажаємо продуктивного дня!</i>"
     requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
                   data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"})
 
 def send_evening():
-    """ВЕЧІР: Порада + Анекдот + Кіно"""
-    advice = get_advice()
-    movie = get_movie()
+    # Порада з файлу (українською)
+    advices = get_from_github("advices.txt")
+    advice = random.choice(advices) if advices else "Будьте собою, всі інші ролі зайняті."
     
-    # Отримуємо випадковий анекдот
+    # Анекдот
     jokes = get_from_github("jokes.txt")
-    joke = random.choice(jokes) if jokes else "Сьогодні без жартів, просто гарного вечора!"
+    joke = random.choice(jokes) if jokes else "Сьогодні вечір релаксу, без жартів!"
     
-    text = f"{advice}\n\n"
+    # Фільм
+    movie = get_movie_ukr()
+    
+    text = f"🛠 <b>Порада дня:</b>\n<i>{advice}</i>\n\n"
     text += f"😂 <b>Хвилинка гумору:</b>\n{joke}\n\n"
     text += f"──────────────────\n{movie}"
     
@@ -125,15 +114,10 @@ def send_evening():
                   data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"})
 
 if __name__ == "__main__":
-    kyiv_tz = pytz.timezone('Europe/Kyiv')
-    hour = datetime.now(kyiv_tz).hour
-    
+    hour = datetime.now(pytz.timezone('Europe/Kyiv')).hour
     if 5 <= hour <= 10:
         send_morning()
     elif 11 <= hour <= 16:
         send_midday()
-    elif 18 <= hour <= 23:
-        send_evening()
     else:
-        # Для ручного тесту в неробочий час присилаємо вечірній блок
         send_evening()
