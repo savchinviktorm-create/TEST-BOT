@@ -1,46 +1,51 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-import re
 from datetime import datetime
 
-def get_data(url):
+def get_soup(url):
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
     try:
         r = requests.get(url, headers=headers, timeout=15)
         r.encoding = 'utf-8'
-        return r.text
-    except: return ""
+        return BeautifulSoup(r.text, 'html.parser')
+    except: return None
 
-def parse_all():
-    # Парсимо валюти
-    html_curr = get_data("https://finance.i.ua/")
-    res = {"usd": "н/д", "eur": "н/д", "u_val": 1.0, "e_val": 1.0}
+def parse_data():
+    # 1. ВАЛЮТИ (i.ua)
+    curr_soup = get_soup("https://finance.i.ua/")
+    res = {"usd": "н/д", "eur": "н/д", "u_val": 0.0, "e_val": 0.0}
     
-    # Шукаємо блоки з валютами по тексту
-    usd_match = re.search(r'USD.*?(\d+\.\d+).*?(\d+\.\d+)', html_curr, re.DOTALL)
-    eur_match = re.search(r'EUR.*?(\d+\.\d+).*?(\d+\.\d+)', html_curr, re.DOTALL)
-    
-    if usd_match:
-        res["usd"] = f"{usd_match.group(1)} / {usd_match.group(2)}"
-        res["u_val"] = float(usd_match.group(1))
-    if eur_match:
-        res["eur"] = f"{eur_match.group(1)} / {eur_match.group(2)}"
-        res["e_val"] = float(eur_match.group(1))
+    if curr_soup:
+        # Шукаємо таблицю як на скріншоті image_0dfef7.png
+        table = curr_soup.find('table', class_='table-delta')
+        if table:
+            for row in table.find_all('tr'):
+                cols = row.find_all('td')
+                if len(cols) >= 3:
+                    name = cols[0].get_text(strip=True)
+                    buy = cols[1].find('span', class_='value').get_text(strip=True).replace(',', '.')
+                    sale = cols[2].find('span', class_='value').get_text(strip=True).replace(',', '.')
+                    if "USD" in name:
+                        res["usd"] = f"{buy} / {sale}"
+                        res["u_val"] = float(buy)
+                    elif "EUR" in name:
+                        res["eur"] = f"{buy} / {sale}"
+                        res["e_val"] = float(buy)
 
-    # Парсимо пальне (середні ціни з таблиці внизу сторінки)
-    html_fuel = get_data("https://finance.i.ua/fuel/")
+    # 2. ПАЛЬНЕ (i.ua)
+    fuel_soup = get_soup("https://finance.i.ua/fuel/")
     fuel = {"a95": "н/д", "dp": "н/д"}
-    
-    if html_fuel:
-        soup = BeautifulSoup(html_fuel, 'lxml')
-        # Шукаємо рядок "Середня"
-        for row in soup.find_all('tr'):
-            if "Середня" in row.text:
-                tds = row.find_all('td')
-                if len(tds) >= 4:
-                    fuel["a95"] = tds[2].get_text(strip=True)
-                    fuel["dp"] = tds[3].get_text(strip=True)
+    if fuel_soup:
+        # На скріншоті image_0df374.png середня ціна в останньому рядку таблиці
+        table = fuel_soup.find('table')
+        if table:
+            for row in table.find_all('tr'):
+                if "Середня" in row.get_text():
+                    tds = row.find_all('td')
+                    if len(tds) >= 4:
+                        fuel["a95"] = tds[2].get_text(strip=True)
+                        fuel["dp"] = tds[3].get_text(strip=True)
     return res, fuel
 
 def get_git_info(file, key):
@@ -48,29 +53,25 @@ def get_git_info(file, key):
     try:
         r = requests.get(url, timeout=10)
         if r.status_code == 200:
-            lines = r.text.splitlines()
-            for line in lines:
+            for line in r.text.splitlines():
                 if key in line:
-                    return line.split('—')[-1].strip() if '—' in line else line.strip()
+                    return line.split('—')[-1].strip()
     except: pass
-    return "немає в базі"
+    return "немає даних"
 
 def send():
-    curr, fuel = parse_all()
+    curr, fuel = parse_data()
     now = datetime.now()
     
-    # Крос-курс
     cross = round(curr['e_val'] / curr['u_val'], 3) if curr['u_val'] > 0 else "н/д"
-    
-    # Дати для пошуку в твоїх файлах
-    m_list = ["січня","лютого","березня","квітня","травня","червня","липня","серпня","вересня","жовтня","листопада","грудня"]
-    day_name = f"{now.day} {m_list[now.month-1]}" # "27 лютого"
-    day_hist = now.strftime("%m-%d")            # "02-27"
+    m_ukr = ["січня","лютого","березня","квітня","травня","червня","липня","серпня","вересня","жовтня","листопада","грудня"]
+    day_name = f"{now.day} {m_ukr[now.month-1]}"
+    day_hist = now.strftime("%m-%d")
 
     msg = (
         f"📅 **ЗВІТ НА {now.strftime('%d.%m.%Y')}**\n\n"
-        f"💰 **Курс (i.ua):**\n🇺🇸 USD: {curr['usd']}\n🇪🇺 EUR: {curr['eur']}\n💱 Крос-курс: {cross}\n\n"
-        f"⛽ **Пальне (Середні):**\n🔹 А-95: {fuel['a95']} грн\n🔹 ДП: {fuel['dp']} грн\n\n"
+        f"💰 **Курс (finance.i.ua):**\n🇺🇸 USD: {curr['usd']}\n🇪🇺 EUR: {curr['eur']}\n💱 Крос-курс: {cross}\n\n"
+        f"⛽ **Пальне (i.ua):**\n🔹 А-95: {fuel['a95']} грн\n🔹 ДП: {fuel['dp']} грн\n\n"
         f"😇 **Іменини:** {get_git_info('names.txt', day_name)}\n"
         f"📜 **Історія:** {get_git_info('history.txt', day_hist)}\n\n"
         f"🎄 До Нового року: {(datetime(now.year + 1, 1, 1) - now).days} днів!"
