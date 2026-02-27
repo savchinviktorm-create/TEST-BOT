@@ -1,6 +1,7 @@
 import requests
 from datetime import datetime
 
+# Твої дані
 TOKEN = "8779933996:AAFtTmrPZ3qME5WV3ZRf7rfOHKzxbCsmSFY"
 CHAT_ID = "653398188"
 
@@ -15,46 +16,45 @@ def get_from_github(file_name, date_key):
     except: return None
     return None
 
-def send_daily_report():
+def send_morning_post():
     now = datetime.now()
     date_key = now.strftime("%m-%d")
-    date_display = now.strftime("%d.%m.%Y")
+    date_str = now.strftime("%d.%m")
 
     # 1. Валюта
     try:
         cur = requests.get("https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json").json()
         usd = next(x for x in cur if x["cc"] == "USD")["rate"]
         eur = next(x for x in cur if x["cc"] == "EUR")["rate"]
-        currency = f"🇺🇸 USD: {usd:.2f} | 🇪🇺 EUR: {eur:.2f}"
-    except: currency = "Курс недоступний"
+        currency = f"💵 <b>Курс валют:</b> USD {usd:.2f} | EUR {eur:.2f}"
+    except: currency = ""
 
     # 2. Дані з файлів
     names = get_from_github("names.txt", date_key)
     history = get_from_github("history.txt", date_key)
-    joke = get_from_github("jokes.txt", date_key) # Якщо є такий файл
-
+    
     # 3. Таймер
     days_to_ny = (datetime(now.year + 1, 1, 1) - now).days
 
-    # Збірка повідомлення
-    text = f"📅 <b>ЗВІТ НА {date_display}</b>\n"
-    text += f"──────────────────\n"
-    text += f"💰 <b>Курс валют (НБУ):</b>\n{currency}\n\n"
+    # Побудова професійної структури
+    parts = []
+    parts.append(f"☀️ <b>Доброго ранку! Сьогодні {date_str}</b>")
     
+    if currency:
+        parts.append(currency)
+        
     if names:
-        text += f"😇 <b>Іменини дня:</b>\n{names}\n"
-        text += "✨ <i>Не забудь привітати іменинників!</i>\n\n"
+        parts.append(f"😇 <b>День ангела святкують:</b>\n{names}")
         
     if history:
-        text += f"🕰 <b>Цей день в історії:</b>\n{history}\n\n"
-        
-    if joke:
-        text += f"😆 <b>Хвилинка гумору:</b>\n{joke}\n\n"
+        parts.append(f"🕰 <b>Цей день в історії:</b>\n{history}")
     
-    text += f"🎄 <b>До Нового року:</b> {days_to_ny} днів"
+    parts.append(f"🎄 До Нового року залишилось: <b>{days_to_ny}</b> днів")
+
+    text = "\n\n".join(parts)
 
     requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
                   data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"})
 
 if __name__ == "__main__":
-    send_daily_report()
+    send_morning_post()
