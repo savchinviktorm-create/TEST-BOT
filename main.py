@@ -19,7 +19,7 @@ def get_data(url):
 def get_weather():
     api_key = os.getenv('WEATHER_API_KEY')
     if not api_key:
-        return "API ключ погоди не заданий"
+        return None
 
     locations = [
         {
@@ -46,13 +46,13 @@ def get_weather():
         except:
             pass
 
-    return "\n".join(reports) if reports else "Немає даних"
+    return "\n".join(reports) if reports else None
 
 # ---------- КУРС ВАЛЮТ ----------
 def get_currency():
     raw = get_data("https://api.privatbank.ua/p24api/pubinfo?exchange&json&coursid=11")
     if not raw:
-        return "Немає даних"
+        return None
 
     try:
         data = json.loads(raw)
@@ -74,30 +74,37 @@ def get_currency():
             f"🔁 USD/EUR: {cross}"
         )
     except:
-        return "Немає даних"
+        return None
 
-# ---------- ПАЛЬНЕ (як є зараз) ----------
+# ---------- ПАЛЬНЕ ----------
 def get_fuel():
     raw = get_data("https://minfin.com.ua/api/fuel/")
     if not raw:
-        return "Немає даних"
+        return None
 
     try:
         data = json.loads(raw)
+        a95 = data.get("a95")
+        dp = data.get("dp")
+        gas = data.get("gas")
+
+        if not a95 and not dp and not gas:
+            return None
+
         return (
-            f"А-95: {data.get('a95', '—')} грн\n"
-            f"ДП: {data.get('dp', '—')} грн\n"
-            f"Газ: {data.get('gas', '—')} грн"
+            f"А-95: {a95} грн\n"
+            f"ДП: {dp} грн\n"
+            f"Газ: {gas} грн"
         )
     except:
-        return "Немає даних"
+        return None
 
 # ---------- ФАЙЛИ З GITHUB ----------
 def get_file_info(file_name, search_key):
     url = f"https://raw.githubusercontent.com/savchinviktorm-create/my-daily-bot/main/{file_name}"
     data = get_data(url)
     if not data:
-        return "немає даних"
+        return None
 
     for line in data.splitlines():
         if search_key in line:
@@ -107,7 +114,7 @@ def get_file_info(file_name, search_key):
                 return line.split(":", 1)[-1].strip()
             return line.strip()
 
-    return "немає даних"
+    return None
 
 # ---------- ГОЛОВНЕ ПОВІДОМЛЕННЯ ----------
 def send_main():
@@ -126,21 +133,30 @@ def send_main():
     ]
     name_search = f"{now.day} {months_ukr[now.month - 1]}"
 
+    weather = get_weather()
+    currency = get_currency()
+    fuel = get_fuel()
     history = get_file_info("history.txt", day_month)
     namenay = get_file_info("names.txt", name_search)
 
-    # --- умовний блок іменин ---
-    name_block = ""
-    if namenay != "немає даних":
-        name_block = f"😇 *Іменини:*\n{namenay}\n\n"
+    message = f"📅 *РАНКОВИЙ ЗВІТ ({date_str})*\n\n"
 
-    message = (
-        f"📅 *РАНКОВИЙ ЗВІТ ({date_str})*\n\n"
-        f"🌡 *Погода:*\n{get_weather()}\n\n"
-        f"💰 *Курс валют:*\n{get_currency()}\n\n"
-        f"⛽️ *Ціни на пальне:*\n{get_fuel()}\n\n"
-        f"{name_block}"
-        f"📜 *Історія дня:*\n{history}\n\n"
+    if weather:
+        message += f"🌡 *Погода:*\n{weather}\n\n"
+
+    if currency:
+        message += f"💰 *Курс валют:*\n{currency}\n\n"
+
+    if fuel:
+        message += f"⛽️ *Ціни на пальне:*\n{fuel}\n\n"
+
+    if namenay:
+        message += f"😇 *Іменини:*\n{namenay}\n\n"
+
+    if history:
+        message += f"📜 *Історія дня:*\n{history}\n\n"
+
+    message += (
         f"💡 *Цитата дня:*\n"
         f"\"Хтось сидить у тіні сьогодні, тому що хтось давно посадив дерево.\" — Воррен Баффет\n\n"
         f"🎄 До Нового року: {(datetime(now.year + 1, 1, 1) - now).days} днів"
