@@ -1,47 +1,48 @@
 import os
-import requests
+import urllib.request
+import json
 from datetime import datetime
-import pytz
 
 def get_history_event():
-    # Налаштовуємо часовий пояс Києва
-    kyiv_tz = pytz.timezone('Europe/Kiev')
-    today = datetime.now(kyiv_tz).strftime("%m-%d")
-    
-    # URL твого файлу (сира версія)
-    # Заміни 'savchinviktorm-create/my-daily-bot' на свій актуальний шлях, якщо він інший
+    # Отримуємо дату у форматі ММ-ДД (як у твоєму history.txt)
+    today = datetime.now().strftime("%m-%d")
     url = "https://raw.githubusercontent.com/savchinviktorm-create/my-daily-bot/main/history.txt"
     
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            lines = response.text.splitlines()
-            for line in lines:
-                # Шукаємо рядок, який починається з поточної дати (напр. 02-27)
+        # Стандартний спосіб завантажити файл без бібліотеки requests
+        with urllib.request.urlopen(url) as response:
+            data = response.read().decode('utf-8')
+            for line in data.splitlines():
                 if line.startswith(today):
+                    # Повертаємо текст після дати і двокрапки
                     return line.split(':', 1)[1].strip()
         return "Сьогодні спокійний день, визначних подій не знайдено."
-    except Exception as e:
-        return f"Не вдалося завантажити історію: {e}"
+    except:
+        return "Не вдалося завантажити історію дня."
 
-def send_telegram_message():
-    token = os.getenv('TELEGRAM_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+def send_telegram():
+    token = os.getenv('TOKEN') # Беремо токен з твоїх секретів (daily.yml рядок 27)
+    chat_id = os.getenv('MY_CHAT_ID') # Беремо ID з секретів (daily.yml рядок 28)
     
     event = get_history_event()
+    date_now = datetime.now().strftime("%d.%m.%Y")
     
-    # Формуємо гарне повідомлення
-    date_now = datetime.now(pytz.timezone('Europe/Kiev')).strftime("%d.%m.%Y")
-    text = f"📅 **Звіт на {date_now}**\n\n📜 **Цей день в історії:**\n{event}"
+    message_text = f"📅 **ЗВІТ НА {date_now}**\n\n📜 **Цей день в історії:**\n{event}"
     
+    # Надсилаємо в Telegram через стандартний urllib
     send_url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
+    payload = json.dumps({
         "chat_id": chat_id,
-        "text": text,
+        "text": message_text,
         "parse_mode": "Markdown"
-    }
+    }).encode('utf-8')
     
-    requests.post(send_url, json=payload)
+    req = urllib.request.Request(send_url, data=payload, headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req) as response:
+            return response.getcode()
+    except Exception as e:
+        print(f"Помилка відправки: {e}")
 
 if __name__ == "__main__":
-    send_telegram_message()
+    send_telegram()
