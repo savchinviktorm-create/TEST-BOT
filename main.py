@@ -3,58 +3,55 @@ import urllib.request
 import json
 from datetime import datetime
 
-# ВСТАВ СВОЄ ПОСИЛАННЯ (CSV) ТУТ
-URL_CURRENCY_TABLE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSExxHF9GN-lpJF9I3L9kLzFoH9lo4_emwtiEoHpiezlf3ESOw6dxGrjmQwk1wuFC6mV6035wu6-l4M/pub?gid=2060076239&single=true&output=csv"
+# СЮДИ ВСТАВ СВОЄ ПОСИЛАННЯ (CSV)
+URL_CURRENCY_TABLE = "ТВОЄ_ПОСИЛАННЯ_З_КРОКУ_ПУБЛІКАЦІЇ"
 
 def get_raw_data(url):
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=15) as response:
             return response.read().decode('utf-8')
-    except: return None
+    except Exception as e:
+        print(f"Error fetching {url}: {e}")
+        return None
 
 def parse_currency():
     raw_data = get_raw_data(URL_CURRENCY_TABLE)
-    if not raw_data: return "❌ Дані валют тимчасово недоступні"
+    if not raw_data:
+        return "❌ Дані валют недоступні"
     
-    lines = raw_data.splitlines()
+    lines = [line.split(',') for line in raw_data.splitlines() if line.strip()]
+    
     try:
-        def to_float(val):
-            # Чистимо текст, щоб зробити з нього число
-            clean_val = val.replace('"', '').replace(',', '.').strip()
-            return float(clean_val)
-
-        def clean_str(val):
+        def clean(val):
             return val.replace('"', '').strip()
 
-        # USD Банки (Рядок 2, Колонки B і C)
-        usd_line = lines[1].split(',')
-        usd_buy_raw = clean_str(usd_line[1])
-        usd_sale_raw = clean_str(usd_line[2])
-        
-        # EUR Банки (Рядок 16, Колонки B і C)
-        eur_line = lines[15].split(',')
-        eur_buy_raw = clean_str(eur_line[1])
-        eur_sale_raw = clean_str(eur_line[2])
-        
-        # Обмінники (Рядок 2, Колонки F і G)
-        black_usd_buy = clean_str(usd_line[5])
-        black_usd_sale = clean_str(usd_line[6])
+        # Шукаємо потрібні рядки за ключовими словами, щоб не залежати від номерів рядків
+        usd_buy, usd_sale = "?", "?"
+        eur_buy, eur_sale = "?", "?"
+        black_usd_buy, black_usd_sale = "?", "?"
 
-        # Рахуємо крос-курс в коді, щоб не мучити Excel
+        for row in lines:
+            if len(row) > 2 and clean(row[0]) == "USD":
+                usd_buy, usd_sale = clean(row[1]), clean(row[2])
+                if len(row) > 6: # Чорний ринок зазвичай праворуч
+                    black_usd_buy, black_usd_sale = clean(row[5]), clean(row[6])
+            if len(row) > 2 and clean(row[0]) == "EUR":
+                eur_buy, eur_sale = clean(row[1]), clean(row[2])
+
+        # Розрахунок крос-курсу в коді
         try:
-            cross_rate = round(to_float(eur_buy_raw) / to_float(usd_buy_raw), 3)
+            cross = round(float(eur_buy) / float(usd_buy), 3)
         except:
-            cross_rate = "не розраховано"
+            cross = "немає даних"
 
-        res = (
-            f"🇺🇸 **USD:** Банки: {usd_buy_raw}/{usd_sale_raw} | Обмін: {black_usd_buy}/{black_usd_sale}\n"
-            f"🇪🇺 **EUR:** Банки: {eur_buy_raw}/{eur_sale_raw}\n"
-            f"💱 **Крос-курс EUR/USD:** {cross_rate}"
+        return (
+            f"🇺🇸 **USD:** Банки: {usd_buy}/{usd_sale} | Обмін: {black_usd_buy}/{black_usd_sale}\n"
+            f"🇪🇺 **EUR:** Банки: {eur_buy}/{eur_sale}\n"
+            f"💱 **Крос-курс EUR/USD:** {cross}"
         )
-        return res
     except Exception as e:
-        return f"⚠️ Помилка структури таблиці"
+        return f"⚠️ Дані оновлюються в таблиці..."
 
 def get_weather():
     api_key = os.getenv('WEATHER_API_KEY')
@@ -75,7 +72,6 @@ def send_report():
     chat_id = os.getenv('MY_CHAT_ID')
     now = datetime.now()
     
-    # Дані з GitHub файлів
     months = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"]
     history_url = "https://raw.githubusercontent.com/savchinviktorm-create/my-daily-bot/main/history.txt"
     names_url = "https://raw.githubusercontent.com/savchinviktorm-create/my-daily-bot/main/names.txt"
@@ -95,10 +91,10 @@ def send_report():
         f"📜 **Історія:**\n{get_git(history_url, now.strftime('%m-%d'))}\n\n"
         f"✨ **Гороскоп:**\n"
         f"♈ Овен: Будьте обережні з фінансами.\n♉ Телець: Зосередьтесь на головному.\n"
-        f" Gemini: Час для відпочинку.\n♋ Рак: Слухайте інтуїцію.\n"
+        f"♊ Близнюки: Час для відпочинку.\n♋ Рак: Слухайте інтуїцію.\n"
         f"♌ Лев: Вдалий день для починань.\n♍ Діва: Зверніть увагу на деталі.\n"
         f"♎ Терези: Гармонія у всьому.\n♏ Скорпіон: Енергійний день.\n"
-        f"♐ Стрілець: Нові можливості.\n♑ Козоріг: Стійкість принесе успех.\n"
+        f"♐ Стрілець: Нові можливості.\n♑ Козоріг: Стійкість принесе успіх.\n"
         f"♒ Водолій: Час для креативу.\n♓ Риби: День для роздумів.\n\n"
         f"💡 **Цитата дня:**\n\"Хтось сидить у тіні сьогодні, тому що хтось давно посадив дерево.\" (Воррен Баффет)\n\n"
         f"😂 **Анекдот:**\n— Василю Івановичу, поїхали до міста, там виставка голографії йде!\n— Ні, Петько, на біса мені на голих графів дивитися?\n\n"
