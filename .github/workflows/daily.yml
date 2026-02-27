@@ -1,21 +1,30 @@
-name: Daily Report
+name: Daily Channel Content
 
 on:
   schedule:
-    - cron: '0 6 * * *'
-  workflow_dispatch:
+    # Час вказано по UTC (Київ -2 години взимку)
+    - cron: '0 6 * * *'  # 08:00 за Києвом (Ранок)
+    - cron: '0 9 * * *'  # 11:00 за Києвом (Цитата)
+    - cron: '0 12 * * *' # 14:00 за Києвом (Лайфхак)
+    - cron: '0 18 * * *' # 20:00 за Києвом (Вечір)
+  workflow_dispatch:      # Кнопка для ручного тесту
 
 jobs:
-  run_bot:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Install
+
+      - name: Install dependencies
         run: pip install requests
-      - name: Start
+
+      - name: Run logic
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
