@@ -37,18 +37,16 @@ def get_weather():
     for loc in locations:
         raw = get_data(loc["url"])
         if not raw:
-            reports.append(f"📍 {loc['name']}: немає даних")
             continue
-
         try:
             data = json.loads(raw)
             temp = round(data["main"]["temp"])
             desc = data["weather"][0]["description"].capitalize()
             reports.append(f"📍 {loc['name']}: {temp}°C, {desc}")
         except:
-            reports.append(f"📍 {loc['name']}: помилка даних")
+            pass
 
-    return "\n".join(reports)
+    return "\n".join(reports) if reports else "Немає даних"
 
 # ---------- КУРС ВАЛЮТ ----------
 def get_currency():
@@ -58,31 +56,27 @@ def get_currency():
 
     try:
         data = json.loads(raw)
+        rates = {c["ccy"]: c for c in data}
+
+        usd = rates["USD"]
+        eur = rates["EUR"]
+
+        usd_buy = float(usd["buy"])
+        usd_sale = float(usd["sale"])
+        eur_buy = float(eur["buy"])
+        eur_sale = float(eur["sale"])
+
+        cross = round(usd_sale / eur_sale, 4)
+
+        return (
+            f"💵 USD: {usd_buy:.2f}/{usd_sale:.2f}\n"
+            f"💶 EUR: {eur_buy:.2f}/{eur_sale:.2f}\n"
+            f"🔁 USD/EUR: {cross}"
+        )
     except:
-        return "Помилка курсу валют"
+        return "Немає даних"
 
-    rates = {c["ccy"]: c for c in data}
-
-    if "USD" not in rates or "EUR" not in rates:
-        return "Неповні дані"
-
-    usd = rates["USD"]
-    eur = rates["EUR"]
-
-    usd_buy = float(usd["buy"])
-    usd_sale = float(usd["sale"])
-    eur_buy = float(eur["buy"])
-    eur_sale = float(eur["sale"])
-
-    cross = round(usd_sale / eur_sale, 4)
-
-    return (
-        f"💵 USD: {usd_buy:.2f}/{usd_sale:.2f}\n"
-        f"💶 EUR: {eur_buy:.2f}/{eur_sale:.2f}\n"
-        f"🔁 USD/EUR: {cross}"
-    )
-
-# ---------- ПАЛЬНЕ ----------
+# ---------- ПАЛЬНЕ (як є зараз) ----------
 def get_fuel():
     raw = get_data("https://minfin.com.ua/api/fuel/")
     if not raw:
@@ -90,18 +84,13 @@ def get_fuel():
 
     try:
         data = json.loads(raw)
+        return (
+            f"А-95: {data.get('a95', '—')} грн\n"
+            f"ДП: {data.get('dp', '—')} грн\n"
+            f"Газ: {data.get('gas', '—')} грн"
+        )
     except:
-        return "Помилка даних"
-
-    a95 = data.get("a95", "—")
-    dp = data.get("dp", "—")
-    gas = data.get("gas", "—")
-
-    return (
-        f"А-95: {a95} грн\n"
-        f"ДП: {dp} грн\n"
-        f"Газ: {gas} грн"
-    )
+        return "Немає даних"
 
 # ---------- ФАЙЛИ З GITHUB ----------
 def get_file_info(file_name, search_key):
@@ -124,7 +113,6 @@ def get_file_info(file_name, search_key):
 def send_main():
     token = os.getenv("TOKEN")
     chat_id = os.getenv("MY_CHAT_ID")
-
     if not token or not chat_id:
         return
 
@@ -141,12 +129,17 @@ def send_main():
     history = get_file_info("history.txt", day_month)
     namenay = get_file_info("names.txt", name_search)
 
+    # --- умовний блок іменин ---
+    name_block = ""
+    if namenay != "немає даних":
+        name_block = f"😇 *Іменини:*\n{namenay}\n\n"
+
     message = (
         f"📅 *РАНКОВИЙ ЗВІТ ({date_str})*\n\n"
         f"🌡 *Погода:*\n{get_weather()}\n\n"
         f"💰 *Курс валют:*\n{get_currency()}\n\n"
-        f"⛽ *Ціни на пальне:*\n{get_fuel()}\n\n"
-        f"😇 *Іменини:*\n{namenay}\n\n"
+        f"⛽️ *Ціни на пальне:*\n{get_fuel()}\n\n"
+        f"{name_block}"
         f"📜 *Історія дня:*\n{history}\n\n"
         f"💡 *Цитата дня:*\n"
         f"\"Хтось сидить у тіні сьогодні, тому що хтось давно посадив дерево.\" — Воррен Баффет\n\n"
