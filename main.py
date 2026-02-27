@@ -3,7 +3,7 @@ import urllib.request
 import json
 from datetime import datetime
 
-# --- ВСТАВ СВОЄ ПОСИЛАННЯ (CSV) ТУТ ---
+# Твоє пряме посилання на CSV
 URL_CURRENCY_TABLE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSExxHF9GN-lpJF9I3L9kLzFoH9lo4_emwtiEoHpiezlf3ESOw6dxGrjmQwk1wuFC6mV6035wu6-l4M/pub?gid=2060076239&single=true&output=csv"
 
 def get_raw_data(url):
@@ -19,34 +19,32 @@ def parse_currency():
     
     lines = raw_data.splitlines()
     try:
-        # Чистимо функцію для прибирання лапок
         def c(v): return v.replace('"', '').strip()
 
-        # USD Банки - Рядок 2 (індекс 1)
-        # У CSV копійки — це окремий стовпець. 
-        # Стовпець B (індекс 1) - цілі, стовпець C (індекс 2) - копійки.
-        line_usd = lines[1].split(',')
-        usd_buy = f"{c(line_usd[1])}.{c(line_usd[2])}"
-        usd_sale = f"{c(line_usd[3])}.{c(line_usd[4])}"
+        # USD - Рядок 3 (індекс 2) за посиланням
+        row_usd = lines[2].split(',')
+        u_buy = f"{c(row_usd[1])}.{c(row_usd[2])[:2]}" # Склеюємо 43 + 00
+        u_sale = f"{c(row_usd[3])}.{c(row_usd[4])[:2]}"
         
-        # EUR Банки - Рядок 16 (індекс 15)
-        line_eur = lines[15].split(',')
-        eur_buy = f"{c(line_eur[1])}.{c(line_eur[2])}"
-        eur_sale = f"{c(line_eur[3])}.{c(line_eur[4])}"
+        # EUR - Рядок 16 (індекс 15) за посиланням
+        row_eur = lines[15].split(',')
+        e_buy = f"{c(row_eur[1])}.{c(row_eur[2])[:2]}"
+        e_sale = f"{c(row_eur[3])}.{c(row_eur[4])[:2]}"
 
-        # Крос-курс (математично в коді)
-        cross = round(float(eur_buy) / float(usd_buy), 3)
+        # Крос-курс
+        cross = round(float(e_buy) / float(u_buy), 3)
 
         return (
-            f"🇺🇸 **USD:** {usd_buy} / {usd_sale}\n"
-            f"🇪🇺 **EUR:** {eur_buy} / {eur_sale}\n"
+            f"🇺🇸 **USD:** {u_buy} / {u_sale}\n"
+            f"🇪🇺 **EUR:** {e_buy} / {e_sale}\n"
             f"💱 **Крос-курс EUR/USD:** {cross}"
         )
     except:
-        return "⚠️ Оновіть дані в таблиці (USD/EUR)"
+        return "⚠️ Дані в таблиці оновлюються..."
 
 def get_weather():
     api_key = os.getenv('WEATHER_API_KEY')
+    # Додав дві локації, як було в кращих версіях
     locs = [("Головецько", "lat=49.20&lon=23.45"), ("Львів", "q=Lviv")]
     reports = []
     for name, p in locs:
@@ -74,12 +72,16 @@ def send_report():
     months = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"]
     day_month = f"{now.day} {months[now.month-1]}"
     
+    # Отримуємо дані з твоїх файлів
+    history = get_git_info('history.txt', now.strftime('%m-%d'))
+    names = get_git_info('names.txt', day_month)
+
     msg = (
         f"📅 **РАНКОВИЙ ЗВІТ ({now.strftime('%d.%m.%Y')})**\n\n"
         f"🌡 **Погода:**\n{get_weather()}\n\n"
         f"💰 **Курс валют (Мінфін):**\n{parse_currency()}\n\n"
-        f"😇 **Іменини:**\n{now.strftime('%d.%m')}: {get_git_info('names.txt', day_month)}\n\n"
-        f"📜 **Історія:**\n{get_git_info('history.txt', now.strftime('%m-%d'))}\n\n"
+        f"😇 **Іменини:**\n{now.strftime('%d.%m')}: {names}\n\n"
+        f"📜 **Історія:**\n{history}\n\n"
         f"✨ **Гороскоп:**\n"
         f"♈ Овен: Будьте обережні з фінансами.\n♉ Телець: Зосередьтесь на головному.\n"
         f"♊ Близнюки: Час для відпочинку.\n♋ Рак: Слухайте інтуїцію.\n"
