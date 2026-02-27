@@ -3,10 +3,9 @@ import urllib.request
 import json
 import csv
 import io
-import re
 from datetime import datetime
 
-# Пряме посилання на твій CSV
+# Твоє пряме посилання
 URL_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSExxHF9GN-lpJF9I3L9kLzFoH9lo4_emwtiEoHpiezlf3ESOw6dxGrjmQwk1wuFC6mV6035wu6-l4M/pub?gid=2060076239&single=true&output=csv"
 
 def get_data(url):
@@ -16,34 +15,45 @@ def get_data(url):
             return r.read().decode('utf-8')
     except: return None
 
-def parse_currency():
+def parse_table():
     raw = get_data(URL_CSV)
-    if not raw: return "❌ Таблиця недоступна"
+    if not raw: return None
     
-    # Перетворюємо CSV на один плоский список усіх значень
+    # Робимо плоский список усіх значень з таблиці
     f = io.StringIO(raw)
     reader = csv.reader(f)
-    flat_list = []
+    data = []
     for row in reader:
-        flat_list.extend([cell.strip() for cell in row if cell.strip()])
+        data.extend([cell.strip() for cell in row if cell.strip()])
 
-    usd_b, eur_b = 0.0, 0.0
-    res = {"USD": "н/д", "EUR": "н/д"}
+    def get_val(keyword, offset=1):
+        """Шукає слово і склеює число з наступною клітинкою (копійками)"""
+        for i, word in enumerate(data):
+            if keyword.lower() in word.lower():
+                try:
+                    # Склеюємо ціле + копійки (напр. 56 і 1500)
+                    val = f"{data[i+offset]}.{data[i+offset+1][:2]}"
+                    return float(val)
+                except: continue
+        return 0.0
 
-    for i, word in enumerate(flat_list):
-        # Шукаємо USD/EUR і беремо цифри, що йдуть ПІСЛЯ них
-        if word.upper() in ["USD", "EUR"]:
-            try:
-                # Склеюємо цілу частину і копійки (напр. 43 і 0500)
-                buy = f"{flat_list[i+1]}.{flat_list[i+2][:2]}"
-                sale = f"{flat_list[i+3]}.{flat_list[i+4][:2]}"
-                res[word.upper()] = f"{buy} / {sale}"
-                if word.upper() == "USD": usd_b = float(buy)
-                if word.upper() == "EUR": eur_b = float(buy)
-            except: continue
+    # Витягуємо валюту
+    u_buy = get_val("USD", 1)
+    u_sale = get_val("USD", 3)
+    e_buy = get_val("EUR", 1)
+    e_sale = get_val("EUR", 3)
+    
+    # Витягуємо пальне (тепер реально з таблиці!)
+    a95 = get_val("А-95", 1)
+    dp = get_val("ДП", 1)
+    gas = get_val("Газ", 1)
 
-    cross = round(eur_b / usd_b, 3) if usd_b > 0 else "н/д"
-    return f"🇺🇸 **USD:** {res['USD']}\n🇪🇺 **EUR:** {res['EUR']}\n💱 **Крос-курс:** {cross}"
+    cross = round(e_buy / u_buy, 3) if u_buy > 0 else 0
+
+    return {
+        "cur": f"🇺🇸 **USD:** {u_buy} / {u_sale}\n🇪🇺 **EUR:** {e_buy} / {e_sale}\n💱 **Крос-курс:** {cross}",
+        "fuel": f"⛽ **Пальне:**\nА-95: {a95} грн\nДП: {dp} грн\nГаз: {gas} грн"
+    }
 
 def get_weather():
     key = os.getenv('WEATHER_API_KEY')
@@ -62,26 +72,30 @@ def get_git_info(file_name, key):
         for line in d.splitlines():
             if key.lower() in line.lower():
                 return line.split('—', 1)[-1].strip() if '—' in line else line.strip()
-    return "немає даних"
+    return "дані відсутні"
 
 def send():
     now = datetime.now()
     months = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"]
-    day_month = f"{now.day} {months[now.month-1]}" # "27 лютого"
+    day_month = f"{now.day} {months[now.month-1]}"
+
+    info = parse_table()
+    currency_text = info['cur'] if info else "⚠️ Помилка валют"
+    fuel_text = info['fuel'] if info else "⚠️ Помилка пального"
 
     msg = (
         f"📅 **ЗВІТ НА {now.strftime('%d.%m.%Y')}**\n\n"
         f"🌡 **Погода:**\n{get_weather()}\n\n"
-        f"💰 **Курс (Мінфін):**\n{parse_currency()}\n\n"
+        f"💰 **Курс валют:**\n{currency_text}\n\n"
+        f"⛽ **Ціни на пальне:**\n{fuel_text}\n\n"
         f"😇 **Іменини:**\n{day_month}: {get_git_info('names.txt', day_month)}\n\n"
         f"📜 **Історія:**\n{get_git_info('history.txt', now.strftime('%m-%d'))}\n\n"
-        f"🎄 До Нового року: {(datetime(now.year + 1, 1, 1) - now).days} днів!\n\n"
-        f"⛽ **Пальне:** А-95: 56.15 | ДП: 52.30 | Газ: 27.85"
+        f"🎄 До Нового року: {(datetime(now.year + 1, 1, 1) - now).days} днів!"
     )
 
     url = f"https://api.telegram.org/bot{os.getenv('TOKEN')}/sendMessage"
-    req = urllib.request.Request(url, data=json.dumps({"chat_id": os.getenv('MY_CHAT_ID'), "text": msg, "parse_mode": "Markdown"}).encode('utf-8'),
-                                 headers={'Content-Type': 'application/json'})
+    payload = json.dumps({"chat_id": os.getenv('MY_CHAT_ID'), "text": msg, "parse_mode": "Markdown"}).encode('utf-8')
+    req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
     urllib.request.urlopen(req)
 
 if __name__ == "__main__":
