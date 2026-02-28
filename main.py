@@ -4,10 +4,12 @@ import datetime
 import os
 import pytz
 
-# Налаштування
-TMDB_API_KEY = "583e99233cb332aaf8ab0ded7a92dde7"
-TELEGRAM_TOKEN = "8779933996:AAFtTmrPZ3qME5WV3ZRf7rfOHKzxbCsmSFY"
-TELEGRAM_CHAT_ID = "653398188"
+# Налаштування — тепер беруться з Secrets GitHub
+# Якщо секрети не знайдені, використовуються твої старі значення як запасні
+TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "583e99233cb332aaf8ab0ded7a92dde7")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8779933996:AAFtTmrPZ3qME5WV3ZRf7rfOHKzxbCsmSFY")
+TELEGRAM_CHAT_ID = os.environ.get("MY_CHAT_ID", "653398188") 
+
 KIEV_TZ = pytz.timezone('Europe/Kiev')
 
 def get_now():
@@ -34,7 +36,7 @@ def get_currency_logic():
         usd_p = next(i for i in p if i['ccy'] == 'USD')
         eur_p = next(i for i in p if i['ccy'] == 'EUR')
         
-        # Монобанк (840 - USD, 978 - EUR, 980 - UAH)
+        # Монобанк
         m = requests.get("https://api.monobank.ua/bank/currency", timeout=10).json()
         usd_m = next(i for i in m if i['currencyCodeA'] == 840 and i['currencyCodeB'] == 980)
         eur_m = next(i for i in m if i['currencyCodeA'] == 978 and i['currencyCodeB'] == 980)
@@ -45,7 +47,6 @@ def get_currency_logic():
         avg_eur_buy = (float(eur_p['buy']) + float(eur_m['rateBuy'])) / 2
         avg_eur_sale = (float(eur_p['sale']) + float(eur_m['rateSell'])) / 2
         
-        # Крос-курс (USD/EUR) на основі середніх продажів
         cross_rate = avg_usd_sale / avg_eur_sale
         
         res += f"🇺🇸 USD: {avg_usd_buy:.2f}/{avg_usd_sale:.2f}\n"
@@ -55,8 +56,6 @@ def get_currency_logic():
     except Exception as e:
         res += "⚠️ Курс тимчасово недоступний"
     return res
-
-# --- ІНШІ ФУНКЦІЇ (БЕЗ ЗМІН) ---
 
 def get_random_image(folder):
     if not os.path.exists(folder): return None
@@ -100,7 +99,6 @@ def make_post():
     now = get_now()
     hour = now.hour
     
-    # 🌅 РАНОК (5:00 - 10:59)
     if 5 <= hour < 11:
         img = get_random_image("media/morning")
         text = (f"🌅 <b>ДОБРОГО РАНКУ!</b>\n📅 Сьогодні: {now.strftime('%d.%m.%Y')}\n"
@@ -115,7 +113,6 @@ def make_post():
                 f"💡 Лайфхак: {get_random_lines('advices.txt')[0]}")
         return text, img
 
-    # 🌙 ВЕЧІР (Після 20:00)
     elif hour >= 20 or hour < 5:
         img = get_random_image("media/evening")
         a = get_random_lines('advices.txt')[0]
@@ -124,7 +121,6 @@ def make_post():
         text = f"🌙 <b>ЗАВЕРШЕННЯ ДНЯ</b>\n\n🛠 {a}\n\n🧐 {f}\n\n😂 {j}\n\n{get_movie()}"
         return text, img
 
-    # 🌤 ДЕНЬ (Інші пости 11:00, 13:30, 17:00 - логіку розширити за потреби)
     else:
         img = get_random_image("media/evening")
         text = f"🌤 <b>ДЕННИЙ ВИПУСК</b>\n\n🛠 Порада: {get_random_lines('advices.txt')[0]}\n🧐 Факт: {get_random_lines('facts.txt')[0]}"
