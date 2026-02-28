@@ -64,6 +64,7 @@ def get_data_by_date(filename):
         return "Дані оновлюються"
     except: return "Помилка файлу"
 
+# ЗМІНЕНО: тепер за замовчуванням береться лише 1 рядок
 def get_random_lines(filename, count=1):
     try:
         if not os.path.exists(filename): return ["Дані відсутні"]
@@ -90,7 +91,6 @@ def make_post():
     now = get_now()
     hour = now.hour
 
-    # 30 варіантів для порад
     advice_intros = [
         "💡 <b>Корисна порада для вас:</b>", "🛠 <b>Спробуйте цей лайфхак:</b>", "🧠 <b>Маленька хитрість на сьогодні:</b>",
         "✨ <b>Пропозиція дня:</b>", "📝 <b>Варто спробувати:</b>", "🎯 <b>Порада для продуктивності:</b>",
@@ -104,7 +104,6 @@ def make_post():
         "🛸 <b>Космічний лайфхак:</b>", "🧿 <b>На замітку:</b>", "🪄 <b>Магія буденності:</b>"
     ]
 
-    # 30 варіантів для фактів
     fact_intros = [
         "🧐 <b>А чи знали ви, що...</b>", "🌍 <b>Цікавий факт у світі:</b>", "🔍 <b>Цікаво знати:</b>",
         "📖 <b>Виявляється, що:</b>", "🧬 <b>Наука каже наступне:</b>", "🗿 <b>Історичний факт:</b>",
@@ -118,7 +117,6 @@ def make_post():
         "🛰 <b>З висоти пташиного польоту:</b>", "🕯 <b>Секретний факт:</b>", "🧿 <b>Дивовижне поруч:</b>"
     ]
 
-    # 30 варіантів для іменин
     name_day_intros = [
         "🎂 <b>Сьогодні іменини святкують:</b>", "🎉 <b>День ангела сьогодні у:</b>", "🌟 <b>Сьогодні день ангела відзначають:</b>",
         "🎈 <b>Сьогодні іменинники:</b>", "🎁 <b>Своє свято святкують:</b>", "🥂 <b>Вітаємо з днем ангела:</b>",
@@ -132,7 +130,6 @@ def make_post():
         "🧨 <b>Бажаємо щастя сьогодні:</b>", "🥁 <b>Сьогоднішні винуватці свята:</b>", "🧿 <b>Запишіть, у кого сьогодні іменини:</b>"
     ]
 
-    # 30 варіантів заклику привітати
     congratulation_texts = [
         "Не забудьте привітати знайомих, якщо вони серед вашого кола друзів! 🥂",
         "Чудова нагода зателефонувати друзям та привітати їх! 🎈",
@@ -166,7 +163,6 @@ def make_post():
         "Світ стає добрішим від щирих привітань! 🌎"
     ]
 
-    # 30 варіантів для жартів
     joke_intros = [
         "😂 <b>Час для усмішки:</b>", "🤪 <b>Трохи гумору вам у стрічку:</b>", "🔔 <b>А ось і свіжий анекдот:</b>",
         "🎭 <b>Хвилинка позитиву:</b>", "🍭 <b>Для солодкого настрою:</b>", "🤡 <b>Трохи жартів не завадить:</b>",
@@ -180,6 +176,7 @@ def make_post():
         "🧿 <b>Магія гумору:</b>", "🕯 <b>Світла хвилинка:</b>", "🧨 <b>Бум сміху!</b>"
     ]
 
+    # ФОРМУВАННЯ ПОСТА
     if 5 <= hour < 11:
         img = get_random_image("media/morning")
         advice = get_random_lines('advices.txt', 1)[0]
@@ -200,24 +197,26 @@ def make_post():
 
     elif hour >= 20 or hour < 5:
         img = get_random_image("media/evening")
-        advices = get_random_lines('advices.txt', 2)
-        facts = get_random_lines('facts.txt', 2)
-        jokes = get_random_lines('jokes.txt', 2)
+        # Беремо по 1 позиції для кожного блоку
+        advice = get_random_lines('advices.txt', 1)[0]
+        fact = get_random_lines('facts.txt', 1)[0]
+        joke = get_random_lines('jokes.txt', 1)[0]
         
-        text = (f"{random.choice(advice_intros)}\n└ 📍 {advices[0]}\n└ 📍 {advices[1]}\n\n"
-                f"{random.choice(fact_intros)}\n└ 🔍 {facts[0]}\n└ 🔍 {facts[1]}\n\n"
-                f"{random.choice(joke_intros)}\n└ ✨ {jokes[0]}\n└ ✨ {jokes[1]}\n\n"
+        text = (f"{random.choice(advice_intros)}\n└ 📍 {advice}\n\n"
+                f"{random.choice(fact_intros)}\n└ 🔍 {fact}\n\n"
+                f"{random.choice(joke_intros)}\n└ ✨ {joke}\n\n"
                 f"━━━━━━━━━━━━━━\n"
                 f"{get_movie()}")
         return text, img
 
     else:
         img = get_random_image("media/evening")
-        advices = get_random_lines('advices.txt', 2)
-        facts = get_random_lines('facts.txt', 2)
+        # Денний випуск: по 1 пораді та 1 факту
+        advice = get_random_lines('advices.txt', 1)[0]
+        fact = get_random_lines('facts.txt', 1)[0]
         
-        text = (f"{random.choice(advice_intros)}\n└ 📍 {advices[0]}\n└ 📍 {advices[1]}\n\n"
-                f"{random.choice(fact_intros)}\n└ 🔍 {facts[0]}\n└ 🔍 {facts[1]}")
+        text = (f"{random.choice(advice_intros)}\n└ 📍 {advice}\n\n"
+                f"{random.choice(fact_intros)}\n└ 🔍 {fact}")
         return text, img
 
 if __name__ == "__main__":
