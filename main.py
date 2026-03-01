@@ -37,7 +37,6 @@ def get_currency_logic():
 
 def get_data_by_date(filename):
     """Шукає дані за форматом MM-DD (наприклад 01-01)"""
-    # Спробуємо знайти файл з .txt або без нього
     path = filename if os.path.exists(filename) else f"{filename}.txt"
     if not os.path.exists(path): return "Файл не знайдено"
     
@@ -46,7 +45,6 @@ def get_data_by_date(filename):
         with open(path, 'r', encoding='utf-8') as f:
             for line in f:
                 if line.strip().startswith(today_str):
-                    # Відрізаємо дату (01-01) і будь-які початкові знаки
                     content = line.strip()[5:].lstrip(' —-–:.').strip()
                     return content
         return "Дані відсутні"
@@ -61,8 +59,23 @@ def get_random_lines(filename):
         return random.choice(lines) if lines else "Дані оновлюються"
     except: return "Помилка файлу"
 
+def get_random_image(folder):
+    if not os.path.exists(folder): return None
+    files = [f for f in os.listdir(folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    return os.path.join(folder, random.choice(files)) if files else None
+
+def get_movie():
+    try:
+        page = random.randint(1, 10)
+        url = f"https://api.themoviedb.org/3/movie/popular?api_key={TMDB_API_KEY}&language=uk-UA&page={page}"
+        r = requests.get(url, timeout=10).json()
+        m = random.choice(r['results'])
+        return f"🎬 <b>ВЕЧІРНІЙ КІНОЗАЛ</b>\n🎥 <b>{m.get('title')}</b>\n⭐ Рейтинг: {m.get('vote_average')}\n🍿 {m.get('overview')[:200]}..."
+    except: return "🎬 Час для кіно!"
+
 def make_post():
     now = get_now()
+    hour = now.hour
     divider = "✨ ✨ ✨ ✨ ✨"
 
     # 30 заготовок для Іменин
@@ -91,39 +104,53 @@ def make_post():
         "🚀 <b>Для твого розвитку:</b>", "🎬 <b>Факти, що вражають:</b>"
     ]
 
-    names = get_data_by_date('history')
-    holidays = get_data_by_date('Holiday')
-    history = get_data_by_date('Wiking')
-    
-    # Випадковий вибір між порадою, фактом або жартом
-    chosen_file = random.choice(['advices', 'facts', 'jokes'])
-    random_info = get_random_lines(chosen_file)
-    
-    ny_days = (datetime.date(now.year + 1, 1, 1) - now.date()).days
+    # 🌅 РАНОК (5:00 - 10:59)
+    if 5 <= hour < 11:
+        img = get_random_image("media/morning")
+        names = get_data_by_date('history')
+        holidays = get_data_by_date('Holiday')
+        history = get_data_by_date('Wiking')
+        ny_days = (datetime.date(now.year + 1, 1, 1) - now.date()).days
+        chosen_file = random.choice(['advices', 'facts', 'jokes'])
+        random_info = get_random_lines(chosen_file)
 
-    text = (f"🌅 <b>ДОБРОГО РАНКУ!</b>\n"
-            f"📅 Сьогодні: <b>{now.strftime('%d.%m.%Y')}</b>\n"
-            f"{divider}\n"
-            f"🎂 <b>Іменини сьогодні святкують:</b>\n"
-            f"└ {names}\n"
-            f"<i>{random.choice(congrats)}</i>\n\n"
-            f"🎉 <b>Свята:</b> {holidays}\n"
-            f"📜 <b>Цей день в історії:</b> {history}\n"
-            f"{divider}\n"
-            f"{get_currency_logic()}\n"
-            f"🎄 До Нового Року: {ny_days} дн.\n"
-            f"{divider}\n"
-            f"{random.choice(intros)}\n"
-            f"└ {random_info}")
-            
-    return text
+        text = (f"🌅 <b>ДОБРОГО РАНКУ!</b>\n"
+                f"📅 Сьогодні: <b>{now.strftime('%d.%m.%Y')}</b>\n"
+                f"{divider}\n"
+                f"🎂 <b>Іменини сьогодні святкують:</b>\n"
+                f"└ {names}\n"
+                f"<i>{random.choice(congrats)}</i>\n\n"
+                f"🎉 <b>Свята:</b> {holidays}\n"
+                f"📜 <b>Цей день в історії:</b> {history}\n"
+                f"{divider}\n"
+                f"{get_currency_logic()}\n"
+                f"🎄 До Нового Року: {ny_days} дн.\n"
+                f"{divider}\n"
+                f"{random.choice(intros)}\n"
+                f"└ {random_info}")
+        return text, img
+
+    # 🌙 ВЕЧІР (Після 20:00)
+    elif hour >= 20 or hour < 5:
+        img = get_random_image("media/evening")
+        a = get_random_lines('advices')
+        f = get_random_lines('facts')
+        j = get_random_lines('jokes')
+        text = (f"🌙 <b>ЗАВЕРШЕННЯ ДНЯ</b>\n\n"
+                f"{random.choice(intros)}\n└ {a}\n\n"
+                f"{random.choice(intros)}\n└ {f}\n\n"
+                f"😂 <b>Гумор:</b>\n└ {j}\n\n"
+                f"{get_movie()}")
+        return text, img
+
+    # 🌤 ДЕНЬ (Інші пости 11:00, 13:30, 17:00)
+    else:
+        img = get_random_image("media/evening")
+        text = (f"🌤 <b>ДЕННИЙ ВИПУСК</b>\n\n"
+                f"{random.choice(intros)}\n└ {get_random_lines('advices')}\n\n"
+                f"{random.choice(intros)}\n└ {get_random_lines('facts')}")
+        return text, img
 
 if __name__ == "__main__":
-    content = make_post()
-    img_folder = "media/morning"
-    photo = None
-    if os.path.exists(img_folder):
-        files = [f for f in os.listdir(img_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-        if files: photo = os.path.join(img_folder, random.choice(files))
-    
+    content, photo = make_post()
     send_telegram(content, photo)
