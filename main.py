@@ -14,123 +14,105 @@ def get_now():
     return datetime.datetime.now(KIEV_TZ)
 
 def send_telegram(text, photo_path=None):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/send{'Photo' if photo_path else 'Message'}"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "caption" if photo_path else "text": text, "parse_mode": "HTML"}
     if photo_path and os.path.exists(photo_path):
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
         with open(photo_path, 'rb') as photo:
-            payload = {"chat_id": TELEGRAM_CHAT_ID, "caption": text, "parse_mode": "HTML"}
-            files = {"photo": photo}
-            r = requests.post(url, data=payload, files=files)
-    else:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
-        r = requests.post(url, json=payload)
-    return r.json()
+            return requests.post(url, data=payload, files={"photo": photo}).json()
+    return requests.post(url, json=payload).json()
 
 def get_currency_logic():
     res = "💰 <b>КУРС ВАЛЮТ</b>\n"
     try:
-        p = requests.get("https://api.privatbank.ua/p24api/pubinfo?exchange&json&coursid=11", timeout=10).json()
+        p = requests.get("https://api.privatbank.ua/p24api/pubinfo?exchange&json&coursid=11", timeout=5).json()
         usd_p = next(i for i in p if i['ccy'] == 'USD')
         eur_p = next(i for i in p if i['ccy'] == 'EUR')
-        m = requests.get("https://api.monobank.ua/bank/currency", timeout=10).json()
+        m = requests.get("https://api.monobank.ua/bank/currency", timeout=5).json()
         usd_m = next(i for i in m if i['currencyCodeA'] == 840 and i['currencyCodeB'] == 980)
         eur_m = next(i for i in m if i['currencyCodeA'] == 978 and i['currencyCodeB'] == 980)
-        
         res += f"🏦 <b>ПриватБанк:</b>\n└ USD: {usd_p['buy'][:5]} / {usd_p['sale'][:5]} | EUR: {eur_p['buy'][:5]} / {eur_p['sale'][:5]}\n"
         res += f"🐾 <b>Монобанк:</b>\n└ USD: {usd_m['rateBuy']:.2f} / {usd_m['rateSell']:.2f} | EUR: {eur_m['rateBuy']:.2f} / {eur_m['rateSell']:.2f}"
-    except:
-        res += "⚠️ Курс тимчасово недоступний"
+    except: res += "⚠️ Курс тимчасово недоступний"
     return res
 
 def get_data_by_date(filename):
-    """Шукає дані за форматом MM-DD (перші 5 символів рядка)"""
+    """Шукає дані за форматом MM-DD (наприклад 03-01)"""
+    # Спробуємо знайти файл як з розширенням, так і без
+    target_file = filename if os.path.exists(filename) else f"{filename}.txt"
+    if not os.path.exists(target_file): return "Файл не знайдено"
+    
     try:
-        today_str = get_now().strftime("%m-%d") # Результат "03-01"
-        if not os.path.exists(filename): return "Файл не знайдено"
-        
-        with open(filename, 'r', encoding='utf-8') as f:
+        today_str = get_now().strftime("%m-%d") # Для 1 березня видасть "03-01"
+        with open(target_file, 'r', encoding='utf-8') as f:
             for line in f:
-                if line.strip()[:5] == today_str:
-                    # Повертаємо все, що після перших 5 символів (дати)
-                    content = line.strip()[5:].strip()
-                    # Прибираємо можливі початкові тире, крапки чи пробіли
-                    content = content.lstrip(' —-–:.') 
-                    return content
-        return "Дані відсутні"
-    except: return "Помилка"
+                if line.strip().startswith(today_str):
+                    return line.strip()[5:].lstrip(' —-–:.').strip()
+        return "Дані на сьогодні відсутні"
+    except: return "Помилка читання"
 
-def get_random_lines(filename, count=1):
+def get_random_lines(filename):
+    target_file = filename if os.path.exists(filename) else f"{filename}.txt"
+    if not os.path.exists(target_file): return "Дані оновлюються"
     try:
-        if not os.path.exists(filename): return ["Дані відсутні"]
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(target_file, 'r', encoding='utf-8') as f:
             lines = [l.strip() for l in f.readlines() if l.strip()]
-        return random.sample(lines, min(len(lines), count)) if lines else ["Дані відсутні"]
-    except: return ["Помилка"]
-
-def days_to_ny():
-    today = get_now().date()
-    ny = datetime.date(today.year + 1, 1, 1)
-    return (ny - today).days
+        return random.choice(lines) if lines else "Дані оновлюються"
+    except: return "Помилка файлу"
 
 def make_post():
     now = get_now()
     divider = "✨ ✨ ✨ ✨ ✨"
 
-    congratulation_calls = [
-        "Не забудьте привітати знайомих, якщо вони серед вашого кола друзів! 🥂",
-        "Чудова нагода зателефонувати друзям та привітати їх! 🎈",
-        "Якщо маєте знайомих з цими іменами — обов'язково надішліть їм вітання! 🎁",
-        "Маленьке повідомлення імениннику зробить його день кращим! 💌",
-        "Поділіться радістю з друзями, які сьогодні святкують! ✨",
-        "Привітання — це дрібниця, яка дуже зігріває серце. Напишіть їм! 😊",
-        "Сьогодні гарний день, щоб згадати про знайомих іменинників! ☀️",
-        "Встигніть побажати всього найкращого винуватцям свята! 🎂",
-        "Ангели люблять, коли їхніх підопічних вітають! 👼",
-        "Ваше привітання сьогодні буде дуже доречним! 🧸",
-        "Не тримайте добро в собі — привітайте друзів! 🕊",
-        "Зробіть приємний сюрприз сьогоднішнім іменинникам! 🎀",
-        "Ваш дзвінок може стати найкращим подарунок! 📱",
-        "Сьогодні імена звучать як пісня. Приєднайтеся до вітань! 🎶",
-        "Згадайте, хто з ваших близьких сьогодні святкує! 👀",
-        "Маєте друзів з цими іменами? Напишіть їм пару теплих слів! 🔥",
-        "Даруйте усмішки та привітання сьогодні! 💐",
-        "Щирі слова завжди доречні. Вітаємо разом! 🌟",
-        "Нехай ваші друзі відчують вашу увагу сьогодні! 💎",
-        "Сьогодні день сповнений світла для цих імен. Поділіться ним! 🕯",
-        "Гарна нагода відновити спілкування через привітання! 🤝",
-        "Не забудьте надіслати листівку або тепле слово! 📮",
-        "Свято стає кращим, коли про нього пам'ятають друзі! 🎊",
-        "Сьогоднішні іменинники чекають на вашу увагу! 🍭",
-        "Складіть коротке вітання для близьких! ✍️",
-        "Хай ваш привітальний пост або смс зігріє когось! 🧣",
-        "Ви знаєте, що робити — теплі слова самі себе не напишуть! 😉",
-        "Сьогодні іменинники заслуговують на ваші обійми (хоча б віртуальні)! 🤗",
-        "Будьте першим, хто привітає сьогоднішніх героїв дня! 🥇",
-        "Світ стає добрішим від щирих привітань! 🌎"
+    # 30 заготовок для Іменин
+    congrats = [
+        "Не забудьте привітати знайомих! 🥂", "Чудова нагода зателефонувати друзям! 🎈", "Надішліть їм тепле вітання! 🎁",
+        "Маленьке SMS зробить їхній день кращим! 💌", "Поділіться радістю з іменинниками! ✨", "Привітання зігріває серце. Напишіть їм! 😊",
+        "Сьогодні гарний день для добрих слів! ☀️", "Встигніть побажати всього найкращого! 🎂", "Ангели радіють вашим вітанням! 👼",
+        "Ваше привітання сьогодні дуже чекають! 🧸", "Не тримайте добро в собі — привітайте! 🕊", "Зробіть приємний сюрприз сьогодні! 🎀",
+        "Ваш дзвінок — найкращий подарунок! 📱", "Приєднайтеся до щирих побажань! 🎶", "Згадайте, хто з близьких святкує! 👀",
+        "Напишіть їм пару теплих рядків! 🔥", "Даруйте усмішки та квіти! 💐", "Щирі слова завжди доречні! 🌟",
+        "Нехай друзі відчують вашу увагу! 💎", "Сьогодні день світла для цих імен! 🕯", "Гарна нагода відновити спілкування! 🤝",
+        "Надішліть листівку або тепле слово! 📮", "Свято краще, коли про нього пам'ятають! 🎊", "Іменинники чекають на вашу увагу! 🍭",
+        "Складіть коротке вітання для близьких! ✍️", "Хай ваше повідомлення зігріє когось! 🧣", "Теплі слова самі себе не напишуть! 😉",
+        "Обійміть іменинників хоча б віртуально! 🤗", "Будьте першим, хто привітає сьогодні! 🥇", "Світ стає добрішим від вітань! 🌎"
     ]
 
-    advice_intros = ["💡 Порада:", "🛠 Лайфхак:", "🧠 Хитрість:", "✨ Пропозиція:", "📝 На замітку:"]
+    # 30 заготовок для Лайфхаків/Фактів/Цитат
+    intros = [
+        "💡 <b>Тобі це допоможе:</b>", "🛠 <b>Спробуй цей лайфхак:</b>", "🧠 <b>А чи знав ти, що:</b>", "📝 <b>Варто занотувати:</b>",
+        "✨ <b>Цікава знахідка:</b>", "🎯 <b>Це спростить твоє життя:</b>", "🧐 <b>Лови круту ідею:</b>", "📎 <b>На замітку:</b>",
+        "🛡 <b>Корисна порада:</b>", "🔍 <b>Цікавий факт:</b>", "🔋 <b>Для твоєї продуктивності:</b>", "🌈 <b>Трохи мудрості:</b>",
+        "🔑 <b>Секрет успіху:</b>", "💎 <b>Цінна думка:</b>", "⚖️ <b>Важливо знати:</b>", "🛰 <b>Погляд під іншим кутом:</b>",
+        "🧪 <b>Перевірений метод:</b>", "🧩 <b>Маленька хитрість:</b>", "🧨 <b>Вибухова ідея:</b>", "🧿 <b>Для натхнення:</b>",
+        "🪁 <b>Легке рішення:</b>", "🧸 <b>Просто і геніально:</b>", "📡 <b>Інформація для тебе:</b>", "🧭 <b>Твій орієнтир:</b>",
+        "🎭 <b>Психологічний трюк:</b>", "🧘 <b>Для твого комфорту:</b>", "⚡️ <b>Швидка допомога:</b>", "⛲️ <b>Джерело знань:</b>",
+        "🚀 <b>Для твого розвитку:</b>", "🎬 <b>Факти, що вражають:</b>"
+    ]
 
-    # Збір даних
-    names = get_data_by_date('history.txt')
-    holidays = get_data_by_date('Holiday.txt')
-    history = get_data_by_date('Wiking.txt')
-    advice = get_random_lines('advices.txt', 1)[0]
+    names = get_data_by_date('history')
+    holidays = get_data_by_date('Holiday')
+    history = get_data_by_date('Wiking')
     
+    # Випадковий вибір між порадою, фактом або жартом
+    chosen_file = random.choice(['advices', 'facts', 'jokes'])
+    random_info = get_random_lines(chosen_file)
+    
+    ny_days = (datetime.date(now.year + 1, 1, 1) - now.date()).days
+
     text = (f"🌅 <b>ДОБРОГО РАНКУ!</b>\n"
             f"📅 Сьогодні: <b>{now.strftime('%d.%m.%Y')}</b>\n"
             f"{divider}\n"
             f"🎂 <b>Іменини сьогодні святкують:</b>\n"
-            f"└ 👤 {names}\n"
-            f"<i>{random.choice(congratulation_calls)}</i>\n\n"
+            f"└ {names}\n"
+            f"<i>{random.choice(congrats)}</i>\n\n"
             f"🎉 <b>Свята:</b> {holidays}\n"
             f"📜 <b>Цей день в історії:</b> {history}\n"
             f"{divider}\n"
             f"{get_currency_logic()}\n"
-            f"🎄 До Нового Року: {days_to_ny()} дн.\n"
+            f"🎄 До Нового Року: {ny_days} дн.\n"
             f"{divider}\n"
-            f"{random.choice(advice_intros)}\n"
-            f"└ {advice}")
+            f"{random.choice(intros)}\n"
+            f"└ {random_info}")
             
     return text
 
@@ -140,7 +122,6 @@ if __name__ == "__main__":
     photo = None
     if os.path.exists(img_folder):
         files = [f for f in os.listdir(img_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-        if files:
-            photo = os.path.join(img_folder, random.choice(files))
+        if files: photo = os.path.join(img_folder, random.choice(files))
     
     send_telegram(content, photo)
