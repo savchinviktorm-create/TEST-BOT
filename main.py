@@ -13,63 +13,57 @@ KIEV_TZ = pytz.timezone('Europe/Kiev')
 def get_now():
     return datetime.datetime.now(KIEV_TZ)
 
-def send_telegram(text, photo_path=None):
-    # Обрізаємо під ліміт Telegram (1024 символи для фото)
-    final_text = text[:1000] + "..." if len(text) > 1000 else text
-    
-    method = "sendPhoto" if photo_path and os.path.exists(photo_path) else "sendMessage"
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}"
-    
+def send_telegram(text):
+    # Telegram дозволяє до 4096 символів у текстовому повідомленні
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "parse_mode": "HTML"
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True # Щоб не вискакували посилання на сайти
     }
-    
-    if method == "sendPhoto":
-        payload["caption"] = final_text
-        with open(photo_path, 'rb') as photo:
-            return requests.post(url, data=payload, files={"photo": photo}).json()
-    else:
-        payload["text"] = final_text
-        return requests.post(url, json=payload).json()
+    return requests.post(url, json=payload).json()
 
-def get_currency():
+def get_cinema_premieres():
+    intros = [
+        "🎟 <b>Свіжі кінопрем'єри тижня:</b>", 
+        "🎬 <b>Що зараз дивляться в кінотеатрах:</b>", 
+        "🍿 <b>Топ-5 новинок на великому екрані:</b>"
+    ]
     try:
-        r = requests.get("https://api.privatbank.ua/p24api/pubinfo?exchange&json&coursid=11", timeout=5).json()
-        usd = next(i for i in r if i['ccy'] == 'USD')
-        return f"🏦 <b>Приват:</b> USD: {usd['buy'][:5]} / {usd['sale'][:5]}"
-    except: return "💰 Курс оновлюється..."
-
-def get_cinema():
-    try:
+        # Запит на фільми, що зараз у прокаті в Україні
         url = f"https://api.themoviedb.org/3/movie/now_playing?api_key={TMDB_API_KEY}&language=uk-UA&region=UA"
         r = requests.get(url, timeout=10).json()
-        movies = r.get('results', [])[:3]
-        if not movies: return "🎬 Новинок поки немає."
-        res = "🎟 <b>Кінопрем'єри:</b>\n"
+        movies = r.get('results', [])[:5] # Беремо рівно 5 фільмів
+        
+        if not movies: return "🎬 Нових прем'єр поки немає."
+        
+        res = f"{random.choice(intros)}\n\n"
         for m in movies:
-            res += f"🍿 <b>{m['title']}</b>\n"
+            title = m.get('title', 'Без назви')
+            desc = m.get('overview', 'Опис очікується...')
+            # Робимо опис коротким (до 100 символів)
+            short_desc = (desc[:97] + "...") if len(desc) > 100 else desc
+            res += f"🍿 <b>{title}</b>\n└ {short_desc}\n\n"
         return res
-    except: return "🎬 Час у кіно!"
+    except:
+        return "🎬 Похід у кіно — завжди гарна ідея!"
 
 def make_post():
     divider = "─────────────────"
-    text = (f"🧪 <b>ТЕСТОВИЙ ЗАПУСК</b>\n"
-            f"{divider}\n"
-            f"{get_cinema()}\n"
-            f"{divider}\n"
-            f"{get_currency()}")
+    now = get_now()
     
-    img = None
-    for folder in ["media/evening", "media/morning"]:
-        if os.path.exists(folder):
-            files = [f for f in os.listdir(folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-            if files:
-                img = os.path.join(folder, random.choice(files))
-                break
-    return text, img
+    cinema_block = get_cinema_premieres()
+    
+    text = (f"🗓 <b>ОГЛЯД НОВИНОК КІНО</b>\n"
+            f"📍 Станом на: {now.strftime('%d.%m.%Y')}\n"
+            f"{divider}\n\n"
+            f"{cinema_block}"
+            f"{divider}\n"
+            f"✨ Приємного перегляду!")
+    return text
 
 if __name__ == "__main__":
-    content, photo = make_post()
-    result = send_telegram(content, photo)
+    content = make_post()
+    result = send_telegram(content)
     print(f"Результат відправки: {result}")
