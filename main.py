@@ -39,44 +39,59 @@ WISHES = [
 ]
 
 def get_books():
-    try:
-        # Шукаємо цікаві книги українською
-        url = "https://www.googleapis.com/books/v1/volumes?q=subject:fiction+l:uk&maxResults=20"
-        items = requests.get(url, timeout=15).json().get('items', [])
-        if not items: return "📖 Книжкова полиця порожня..."
+    # Список запитів для пошуку (від складного до простого)
+    queries = [
+        "https://www.googleapis.com/books/v1/volumes?q=subject:fiction+l:uk&maxResults=20",
+        "https://www.googleapis.com/books/v1/volumes?q=intitle:книга+l:uk&maxResults=20",
+        "https://www.googleapis.com/books/v1/volumes?q=l:uk&orderBy=newest&maxResults=20"
+    ]
+    
+    items = []
+    for url in queries:
+        try:
+            r = requests.get(url, timeout=10)
+            data = r.json()
+            items = data.get('items', [])
+            if items: break # Якщо знайшли книги, зупиняємо цикл
+        except:
+            continue
+
+    # Якщо API нічого не повернуло, даємо фіксований список (fallback)
+    if not items:
+        return ("📘 <b>ІНТЕРВ'Ю З КНИГОЮ</b>\n✍️ <i>Різні автори</i>\n〰️〰️〰️〰️〰️〰️〰️〰️\n«Сьогодні бібліотека проводить технічні роботи, але це чудовий привід перечитати улюблену класику!»\n\n")
+
+    random.shuffle(items)
+    res = ""
+    count = 0
+    for item in items:
+        if count >= 3: break
+        info = item.get('volumeInfo', {})
+        desc = info.get('description', '')
         
-        random.shuffle(items)
-        res = ""
-        count = 0
-        for item in items:
-            if count >= 3: break
-            info = item.get('volumeInfo', {})
-            desc = info.get('description', '')
-            if not desc or len(desc) < 30: continue
-            
-            title = info.get('title', 'Без назви').upper()
-            author = ", ".join(info.get('authors', ['Автор невідомий']))
-            
-            # Розумне обрізання тексту
-            limit = 350
-            if len(desc) > limit:
-                trunc = desc[:limit]
-                last = max(trunc.rfind('.'), trunc.rfind('!'), trunc.rfind('?'))
-                desc = trunc[:last+1] if last != -1 else trunc + "..."
-            
-            res += f"📘 <b>{title}</b>\n✍️ <i>{author}</i>\n"
-            res += f"〰️〰️〰️〰️〰️〰️〰️〰️\n"
-            res += f"«{desc}»\n\n"
-            count += 1
-        return res
-    except:
-        return "⚠️ Помилка завантаження книг."
+        # Якщо опису немає, ми його не беремо, шукаємо наступну
+        if not desc or len(desc) < 30: continue
+        
+        title = info.get('title', 'Без назви').upper()
+        author = ", ".join(info.get('authors', ['Автор невідомий']))
+        
+        # Розумне обрізання тексту
+        limit = 350
+        if len(desc) > limit:
+            trunc = desc[:limit]
+            last = max(trunc.rfind('.'), trunc.rfind('!'), trunc.rfind('?'))
+            desc = trunc[:last+1] if last != -1 else trunc + "..."
+        
+        res += f"📘 <b>{title}</b>\n✍️ <i>{author}</i>\n"
+        res += f"〰️〰️〰️〰️〰️〰️〰️〰️\n"
+        res += f"«{desc}»\n\n"
+        count += 1
+    
+    return res if res else "📖 <i>Книжкова полиця оновлюється...</i>\n\n"
 
 def main():
     now = datetime.datetime.now(KIEV_TZ)
     date_str = now.strftime('%d.%m.%Y')
     
-    # Естетичний дизайн заголовка
     header = f"✧─── ･ ｡ﾟ☆: *. 📖 .* :☆ﾟ. ───✧\n"
     header += f"🗓 <b>КНИЖКОВА СЕРЕДА • {date_str}</b>\n"
     header += f"✧─── ･ ｡ﾟ☆: *. 📚 .* :☆ﾟ. ───✧\n\n"
@@ -86,7 +101,6 @@ def main():
     
     full_text = header + body + footer
     
-    # Відправка
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -94,8 +108,7 @@ def main():
         "parse_mode": "HTML",
         "disable_web_page_preview": True
     }
-    r = requests.post(url, json=payload)
-    print(r.json())
+    requests.post(url, json=payload)
 
 if __name__ == "__main__":
     main()
