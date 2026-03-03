@@ -6,7 +6,7 @@ import pytz
 
 # --- НАЛАШТУВАННЯ (ВСТАВ СВОЇ ДАНІ СЮДИ) ---
 TMDB_API_KEY = "583e99233cb332aaf8ab0ded7a92dde7"
-TELEGRAM_TOKEN = "ТВОЙ_ТОКЕН_ВІД_BOTFATHER"  # Встав сюди токен @Slid48bot
+TELEGRAM_TOKEN = "8697253866:AAHx3nS_Bshn5bamwbdTQZCtOZ6pfT8tmjY"  # Встав сюди токен @Slid48bot
 TELEGRAM_CHAT_ID = "653398188"               # Твій ID вже вписано
 KIEV_TZ = pytz.timezone('Europe/Kiev')
 
