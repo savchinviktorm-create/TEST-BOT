@@ -14,37 +14,54 @@ def get_now():
     return datetime.datetime.now(KIEV_TZ)
 
 def send_telegram(text):
-    # Telegram дозволяє до 4096 символів у текстовому повідомленні
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
         "parse_mode": "HTML",
-        "disable_web_page_preview": True # Щоб не вискакували посилання на сайти
+        "disable_web_page_preview": True
     }
     return requests.post(url, json=payload).json()
 
-def get_cinema_premieres():
-    intros = [
-        "🎟 <b>Свіжі кінопрем'єри тижня:</b>", 
-        "🎬 <b>Що зараз дивляться в кінотеатрах:</b>", 
-        "🍿 <b>Топ-5 новинок на великому екрані:</b>"
-    ]
+def get_detailed_info(movie_id):
+    """Отримує жанри та акторів для конкретного фільму"""
     try:
-        # Запит на фільми, що зараз у прокаті в Україні
+        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=uk-UA&append_to_response=credits"
+        data = requests.get(url, timeout=10).json()
+        
+        # Отримуємо жанри
+        genres = [g['name'] for g in data.get('genres', [])]
+        genres_str = ", ".join(genres) if genres else "Не вказано"
+        
+        # Отримуємо топ-3 акторів
+        cast = [person['name'] for person in data.get('credits', {}).get('cast', [])[:3]]
+        cast_str = ", ".join(cast) if cast else "Інформація відсутня"
+        
+        return genres_str, cast_str
+    except:
+        return "Кіно", "Невідомо"
+
+def get_cinema_premieres():
+    intros = ["🎟 <b>Зараз у кінопрокаті:</b>", "🎬 <b>Новинки тижня (включаючи мультфільми):</b>"]
+    try:
+        # Отримуємо список фільмів у прокаті
         url = f"https://api.themoviedb.org/3/movie/now_playing?api_key={TMDB_API_KEY}&language=uk-UA&region=UA"
         r = requests.get(url, timeout=10).json()
-        movies = r.get('results', [])[:5] # Беремо рівно 5 фільмів
+        movies = r.get('results', [])[:5]
         
         if not movies: return "🎬 Нових прем'єр поки немає."
         
         res = f"{random.choice(intros)}\n\n"
         for m in movies:
             title = m.get('title', 'Без назви')
-            desc = m.get('overview', 'Опис очікується...')
-            # Робимо опис коротким (до 100 символів)
-            short_desc = (desc[:97] + "...") if len(desc) > 100 else desc
-            res += f"🍿 <b>{title}</b>\n└ {short_desc}\n\n"
+            movie_id = m.get('id')
+            
+            # Отримуємо деталі (жанр та акторів)
+            genres, cast = get_detailed_info(movie_id)
+            
+            res += f"🍿 <b>{title.upper()}</b>\n"
+            res += f"🎭 Жанр: <i>{genres}</i>\n"
+            res += f"👥 У ролях: <i>{cast}</i>\n\n"
         return res
     except:
         return "🎬 Похід у кіно — завжди гарна ідея!"
@@ -52,11 +69,10 @@ def get_cinema_premieres():
 def make_post():
     divider = "─────────────────"
     now = get_now()
-    
     cinema_block = get_cinema_premieres()
     
-    text = (f"🗓 <b>ОГЛЯД НОВИНОК КІНО</b>\n"
-            f"📍 Станом на: {now.strftime('%d.%m.%Y')}\n"
+    text = (f"🗓 <b>КІНОАФІША УКРАЇНИ</b>\n"
+            f"📍 {now.strftime('%d.%m.%Y')}\n"
             f"{divider}\n\n"
             f"{cinema_block}"
             f"{divider}\n"
@@ -66,4 +82,4 @@ def make_post():
 if __name__ == "__main__":
     content = make_post()
     result = send_telegram(content)
-    print(f"Результат відправки: {result}")
+    print(f"Результат: {result}")
