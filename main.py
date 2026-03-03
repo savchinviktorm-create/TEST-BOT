@@ -6,7 +6,7 @@ import pytz
 
 # --- НАЛАШТУВАННЯ (беруться з Secrets твого TEST-BOT) ---
 TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "583e99233cb332aaf8ab0ded7a92dde7")
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN = "8697253866:AAHx3nS_Bshn5bamwbdTQZCtOZ6pfT8tmjY"
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 KIEV_TZ = pytz.timezone('Europe/Kiev')
 
