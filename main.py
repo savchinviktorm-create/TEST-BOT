@@ -1,17 +1,14 @@
 import requests
 import random
-import datetime
 import os
 import pytz
+from datetime import datetime
 
 # --- НАЛАШТУВАННЯ ---
-# Токен береться з Secrets (BOT_TOKEN), якщо локально — встав свій
+# Бот спочатку шукає токен у Secrets (для GitHub), якщо не знаходить — бере вписаний
 TELEGRAM_TOKEN = os.environ.get('BOT_TOKEN') or "8697253866:AAHx3nS_Bshn5bamwbdTQZCtOZ6pfT8tmjY"
 TELEGRAM_CHAT_ID = "653398188"
 KIEV_TZ = pytz.timezone('Europe/Kiev')
-
-def get_now():
-    return datetime.datetime.now(KIEV_TZ)
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -21,20 +18,26 @@ def send_telegram(text):
         "parse_mode": "HTML",
         "disable_web_page_preview": True
     }
-    return requests.post(url, json=payload).json()
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
 
 def get_random_books(file_path='books.txt', count=3):
-    """Зчитує книги з файлу та форматує блок"""
+    """Вибирає випадкові книги з файлу та формує текст блоку"""
+    if not os.path.exists(file_path):
+        return "📖 Помилка: Файл books.txt не знайдено у репозиторії."
+    
     try:
-        if not os.path.exists(file_path):
-            return "📖 Файл books.txt не знайдено. Додайте його в репозиторій!"
-        
         with open(file_path, 'r', encoding='utf-8') as f:
+            # Читаємо рядки, прибираємо зайві пробіли та перевіряємо наявність розділювача "|"
             lines = [line.strip() for line in f.readlines() if line.strip() and '|' in line]
-            
+        
         if not lines:
-            return "📖 Список книг порожній або має неправильний формат."
-            
+            return "📖 Помилка: Файл books.txt порожній або має некоректний формат."
+        
+        # Вибираємо 3 випадкові книги
         selected = random.sample(lines, min(count, len(lines)))
         
         res = "📚 <b>РЕКОМЕНДАЦІЇ ДЛЯ ЧИТАННЯ:</b>\n\n"
@@ -49,16 +52,14 @@ def get_random_books(file_path='books.txt', count=3):
             res += f"📝 {desc}\n\n"
         return res
     except Exception as e:
-        return f"⚠️ Помилка зчитування книг: {str(e)}"
+        return f"⚠️ Помилка при обробці файлу: {str(e)}"
 
 def make_post():
-    # Красиві розділювачі для книжкового блоку
+    # Естетичні розділювачі
     book_divider = "📖✨📖✨📖✨📖✨📖"
     bottom_divider = "⭐️📚⭐️📚⭐️📚⭐️📚⭐️"
     
-    now = get_now()
-    
-    # Твої 50 заготовок побажань для книг
+    # Твій список з 50 побажань
     book_wishes = [
         "Натхнення на кожній сторінці!", "Нехай книга стане вашим найкращим другом сьогодні.",
         "Бажаємо знайти відповіді між рядків.", "Приємного занурення у нові світи!",
@@ -87,18 +88,20 @@ def make_post():
         "Нехай кожна книга робить вас щасливішими.", "Ваша наступна улюблена історія вже чекає!"
     ]
     
-    books_block = get_random_books('books.txt', 3)
+    books_content = get_random_books()
     wish = random.choice(book_wishes)
     
-    # Формування фінального тексту
-    text = (f"🗓 <b>КНИЖКОВА ПОЛИЦЯ • {now.strftime('%d.%m.%Y')}</b>\n"
-            f"{book_divider}\n\n"
-            f"{books_block}"
-            f"{bottom_divider}\n"
-            f"✨ {wish}")
+    # Формуємо фінальний текст (Дата видалена за твоїм проханням)
+    text = (
+        f"🗓 <b>КНИЖКОВА ПОЛИЦЯ</b>\n"
+        f"{book_divider}\n\n"
+        f"{books_content}"
+        f"{bottom_divider}\n"
+        f"✨ {wish}"
+    )
     return text
 
 if __name__ == "__main__":
-    content = make_post()
-    result = send_telegram(content)
-    print(f"Результат відправки: {result}")
+    final_post = make_post()
+    status = send_telegram(final_post)
+    print(f"Статус відправки: {status}")
