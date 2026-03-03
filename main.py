@@ -33,21 +33,26 @@ def get_detailed_info(movie_id):
         genres = [g['name'] for g in data.get('genres', [])]
         genres_str = ", ".join(genres) if genres else "Не вказано"
         
-        # Отримуємо топ-3 акторів
+        # Отримуємо топ-3 акторів (або режисера, якщо акторів немає)
         cast = [person['name'] for person in data.get('credits', {}).get('cast', [])[:3]]
-        cast_str = ", ".join(cast) if cast else "Інформація відсутня"
+        cast_str = ", ".join(cast) if cast else "Інформація про склад відсутня"
         
         return genres_str, cast_str
     except:
-        return "Кіно", "Невідомо"
+        return "Кіно", "Інформація відсутня"
 
 def get_cinema_premieres():
-    intros = ["🎟 <b>Зараз у кінопрокаті:</b>", "🎬 <b>Новинки тижня (включаючи мультфільми):</b>"]
+    intros = [
+        "🎟 <b>Зараз у кінопрокаті України:</b>", 
+        "🎬 <b>Актуальні стрічки та мультфільми тижня:</b>",
+        "🎞 <b>Що подивитись на великому екрані:</b>"
+    ]
     try:
         # Отримуємо список фільмів у прокаті
         url = f"https://api.themoviedb.org/3/movie/now_playing?api_key={TMDB_API_KEY}&language=uk-UA&region=UA"
         r = requests.get(url, timeout=10).json()
-        movies = r.get('results', [])[:5]
+        # Змінено на 10 стрічок
+        movies = r.get('results', [])[:10]
         
         if not movies: return "🎬 Нових прем'єр поки немає."
         
@@ -71,7 +76,7 @@ def make_post():
     now = get_now()
     cinema_block = get_cinema_premieres()
     
-    text = (f"🗓 <b>КІНОАФІША УКРАЇНИ</b>\n"
+    text = (f"🗓 <b>КІНОАФІША</b>\n"
             f"📍 {now.strftime('%d.%m.%Y')}\n"
             f"{divider}\n\n"
             f"{cinema_block}"
@@ -82,4 +87,4 @@ def make_post():
 if __name__ == "__main__":
     content = make_post()
     result = send_telegram(content)
-    print(f"Результат: {result}")
+    print(f"Результат відправки: {result}")
