@@ -28,7 +28,7 @@ def get_detailed_info(movie_id):
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=uk-UA&append_to_response=credits"
         data = requests.get(url, timeout=10).json()
         genres = [g['name'] for g in data.get('genres', [])]
-        genres_str = ", ".join(genres) if genres else "Не вказано"
+        genres_str = ", ".join(genres) if genres else "Кіно"
         cast = [person['name'] for person in data.get('credits', {}).get('cast', [])[:3]]
         cast_str = ", ".join(cast) if cast else "Інформація відсутня"
         return genres_str, cast_str
@@ -43,23 +43,25 @@ def get_cinema_premieres():
         
         if not movies: return "🎬 Нових прем'єр поки немає."
         
-        res = "🎟 <b>Зараз у кінопрокаті України:</b>\n\n"
+        res = "🎞 <b>ЗАРАЗ У КІНОТЕАТРАХ:</b>\n\n"
         for m in movies:
             title = m.get('title', 'Без назви')
             movie_id = m.get('id')
             genres, cast = get_detailed_info(movie_id)
-            res += f"🍿 <b>{title.upper()}</b>\n"
-            res += f"🎭 Жанр: <i>{genres}</i>\n"
-            res += f"👥 У ролях: <i>{cast}</i>\n\n"
+            res += f"🎬 <b>{title.upper()}</b>\n"
+            res += f"🎭 <i>{genres}</i>\n"
+            res += f"👥 <i>{cast}</i>\n\n"
         return res
     except:
-        return "🎬 Похід у кіно — завжди гарна ідея!"
+        return "🎬 Час обрати фільм для вечора!"
 
 def make_post():
-    divider = "─────────────────"
+    # Красиві розділювачі замість ліній
+    cinema_divider = "🎬✨🎬✨🎬✨🎬✨🎬"
+    bottom_divider = "⭐️🍿⭐️🍿⭐️🍿⭐️🍿⭐️"
+    
     now = get_now()
     
-    # 50 варіантів побажань
     final_wishes = [
         "✨ Приємного перегляду!", "🍿 Не забудьте про попкорн!", "🎬 До зустрічі у кінозалі!", 
         "📽 Гарного вечора за переглядом!", "🌟 Нехай фільм перевершить очікування!", 
@@ -89,12 +91,12 @@ def make_post():
     cinema_block = get_cinema_premieres()
     wish = random.choice(final_wishes)
     
-    text = (f"🗓 <b>КІНОАФІША</b>\n"
-            f"📍 {now.strftime('%d.%m.%Y')}\n"
-            f"{divider}\n\n"
+    # Формуємо текст так, щоб у сповіщенні (перші рядки) було видно суть
+    text = (f"🗓 <b>КІНОАФІША • {now.strftime('%d.%m.%Y')}</b>\n"
+            f"{cinema_divider}\n\n"
             f"{cinema_block}"
-            f"{divider}\n"
-            f"{wish}")
+            f"{bottom_divider}\n"
+            f"✨ {wish}")
     return text
 
 if __name__ == "__main__":
